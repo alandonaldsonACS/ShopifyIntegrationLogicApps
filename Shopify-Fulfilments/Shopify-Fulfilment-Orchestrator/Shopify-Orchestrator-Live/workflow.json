@@ -1,0 +1,192 @@
+{
+  "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "actions": {
+          "Create_Fulfilments_SP": {
+              "inputs": {
+                  "body": {},
+                  "host": {
+                      "connection": {
+                          "referenceName": "sql"
+                      }
+                  },
+                  "method": "post",
+                  "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Shopify_Create_Fulfilments]'))}"
+              },
+              "runAfter": {
+                  "Parse_Fulfilment_Orchestrator_Task_JSON": [
+                      "SUCCEEDED"
+                  ]
+              },
+              "type": "ApiConnection"
+          },
+          "For_each_Fulfilment_Task": {
+              "actions": {
+                  "Call_Fulfilment_Worker_": {
+                      "inputs": {
+                          "body": "@items('For_each_Fulfilment_Task')",
+                          "method": "POST",
+                          "uri": "https://shopify-fulfilments-import-live.azurewebsites.net:443/api/Shopify-Fulfilments-Import-Live/triggers/When_a_HTTP_request_is_received/invoke?api-version=2022-05-01&sp=%2Ftriggers%2FWhen_a_HTTP_request_is_received%2Frun&sv=1.0&sig=kuJVGcscYXldMDFObgd2B5_V9Nd8PSKl26Fk2_sokxs"
+                      },
+                      "runtimeConfiguration": {
+                          "contentTransfer": {
+                              "transferMode": "Chunked"
+                          }
+                      },
+                      "type": "Http"
+                  }
+              },
+              "foreach": "@body('Parse_Fulfilment_Orchestrator_Task_JSON')?['Table1']",
+              "runAfter": {
+                  "Create_Fulfilments_SP": [
+                      "SUCCEEDED"
+                  ]
+              },
+              "type": "Foreach"
+          },
+          "Get_Shopify_Orchestrator_Tasks": {
+              "inputs": {
+                  "body": {
+                      "operationName": "Shopify-To-XW-Fulfilments"
+                  },
+                  "host": {
+                      "connection": {
+                          "referenceName": "sql"
+                      }
+                  },
+                  "method": "post",
+                  "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Shopify_Orchestrator_Get_Operations]'))}"
+              },
+              "runAfter": {
+                  "Initialize_Retailers_Variable": [
+                      "SUCCEEDED"
+                  ]
+              },
+              "type": "ApiConnection"
+          },
+          "Initialize_Retailers_Variable": {
+              "inputs": {
+                  "variables": [
+                      {
+                          "name": "Retailers",
+                          "type": "string",
+                          "value": "N/A"
+                      }
+                  ]
+              },
+              "runAfter": {},
+              "type": "InitializeVariable"
+          },
+          "Parse_Fulfilment_Orchestrator_Task_JSON": {
+              "inputs": {
+                  "content": "@body('Get_Shopify_Orchestrator_Tasks')?['resultsets']",
+                  "schema": {
+                      "properties": {
+                          "Table1": {
+                              "items": {
+                                  "properties": {
+                                      "AccountCode": {
+                                          "type": "string"
+                                      },
+                                      "Active": {
+                                          "type": "boolean"
+                                      },
+                                      "Endpoint": {
+                                          "type": "string"
+                                      },
+                                      "ID": {
+                                          "type": "integer"
+                                      },
+                                      "LastRunTime": {
+                                          "type": "string"
+                                      },
+                                      "Name": {
+                                          "type": "string"
+                                      },
+                                      "NotifyCustomers": {
+                                          "type": "boolean"
+                                      },
+                                      "Operation": {
+                                          "type": "string"
+                                      },
+                                      "OrderNumberPrefix": {
+                                          "type": "string"
+                                      },
+                                      "ShopId": {
+                                          "type": "string"
+                                      },
+                                      "SizeConversion": {
+                                          "type": "boolean"
+                                      },
+                                      "email": {
+                                          "type": "string"
+                                      }
+                                  },
+                                  "required": [
+                                      "ID",
+                                      "AccountCode",
+                                      "Name",
+                                      "Operation",
+                                      "Endpoint",
+                                      "ShopId",
+                                      "LastRunTime",
+                                      "Active"
+                                  ],
+                                  "type": "object"
+                              },
+                              "type": "array"
+                          }
+                      },
+                      "type": "object"
+                  }
+              },
+              "runAfter": {
+                  "Get_Shopify_Orchestrator_Tasks": [
+                      "SUCCEEDED"
+                  ]
+              },
+              "type": "ParseJson"
+          }
+      },
+      "contentVersion": "1.0.0.0",
+      "outputs": {},
+      "triggers": {
+          "Recurrence": {
+              "recurrence": {
+                  "frequency": "Week",
+                  "interval": 1,
+                  "schedule": {
+                      "hours": [
+                          "9",
+                          "6",
+                          "7",
+                          "8",
+                          "10",
+                          "11",
+                          "12",
+                          "13",
+                          "14",
+                          "15",
+                          "16",
+                          "17"
+                      ],
+                      "minutes": [
+                          46
+                      ],
+                      "weekDays": [
+                          "Monday",
+                          "Tuesday",
+                          "Wednesday",
+                          "Thursday",
+                          "Friday"
+                      ]
+                  },
+                  "startTime": "2023-11-01T12:15:00",
+                  "timeZone": "GMT Standard Time"
+              },
+              "type": "Recurrence"
+          }
+      }
+  },
+  "kind": "Stateful"
+}

@@ -1,0 +1,1353 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "Check_Products_Were_Imported": {
+                "actions": {
+                    "Update_Orchestrator_Runtime": {
+                        "inputs": {
+                            "body": {
+                                "Date": "@variables('RunTime')",
+                                "ID": "@triggerBody()?['ID']"
+                            },
+                            "host": {
+                                "connection": {
+                                    "referenceName": "sql"
+                                }
+                            },
+                            "method": "post",
+                            "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Shopify_Orchestrator_Update_LastRunTime]'))}"
+                        },
+                        "type": "ApiConnection"
+                    }
+                },
+                "else": {
+                    "actions": {}
+                },
+                "expression": {
+                    "and": [
+                        {
+                            "greater": [
+                                "@length(body('Parse_Products_JSON')?['products'])",
+                                0
+                            ]
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Check_if_More_Products_to_import": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "If"
+            },
+            "Check_if_More_Products_to_import": {
+                "actions": {
+                    "Parse_Products_Headers": {
+                        "inputs": {
+                            "content": "@outputs('Get_Products_from_Shopify')?['headers']",
+                            "schema": {
+                                "properties": {
+                                    "Alt-Svc": {
+                                        "type": "string"
+                                    },
+                                    "CF-Cache-Status": {
+                                        "type": "string"
+                                    },
+                                    "CF-RAY": {
+                                        "type": "string"
+                                    },
+                                    "Connection": {
+                                        "type": "string"
+                                    },
+                                    "Content-Security-Policy": {
+                                        "type": "string"
+                                    },
+                                    "Content-Type": {
+                                        "type": "string"
+                                    },
+                                    "Date": {
+                                        "type": "string"
+                                    },
+                                    "HTTP_X_SHOPIFY_SHOP_API_CALL_LIMIT": {
+                                        "type": "string"
+                                    },
+                                    "Link": {
+                                        "type": "string"
+                                    },
+                                    "NEL": {
+                                        "type": "string"
+                                    },
+                                    "Referrer-Policy": {
+                                        "type": "string"
+                                    },
+                                    "Report-To": {
+                                        "type": "string"
+                                    },
+                                    "Server": {
+                                        "type": "string"
+                                    },
+                                    "Server-Timing": {
+                                        "type": "string"
+                                    },
+                                    "Strict-Transport-Security": {
+                                        "type": "string"
+                                    },
+                                    "Transfer-Encoding": {
+                                        "type": "string"
+                                    },
+                                    "Vary": {
+                                        "type": "string"
+                                    },
+                                    "X-Content-Type-Options": {
+                                        "type": "string"
+                                    },
+                                    "X-Dc": {
+                                        "type": "string"
+                                    },
+                                    "X-Download-Options": {
+                                        "type": "string"
+                                    },
+                                    "X-Frame-Options": {
+                                        "type": "string"
+                                    },
+                                    "X-Permitted-Cross-Domain-Policies": {
+                                        "type": "string"
+                                    },
+                                    "X-Request-ID": {
+                                        "type": "string"
+                                    },
+                                    "X-ShardId": {
+                                        "type": "string"
+                                    },
+                                    "X-ShopId": {
+                                        "type": "string"
+                                    },
+                                    "X-Shopify-API-Terms": {
+                                        "type": "string"
+                                    },
+                                    "X-Shopify-API-Version": {
+                                        "type": "string"
+                                    },
+                                    "X-Shopify-Shop-Api-Call-Limit": {
+                                        "type": "string"
+                                    },
+                                    "X-Shopify-Stage": {
+                                        "type": "string"
+                                    },
+                                    "X-Sorting-Hat-PodId": {
+                                        "type": "string"
+                                    },
+                                    "X-Sorting-Hat-ShopId": {
+                                        "type": "string"
+                                    },
+                                    "X-Stats-ApiClientId": {
+                                        "type": "string"
+                                    },
+                                    "X-Stats-ApiPermissionId": {
+                                        "type": "string"
+                                    },
+                                    "X-Stats-UserId": {
+                                        "type": "string"
+                                    },
+                                    "X-XSS-Protection": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        },
+                        "type": "ParseJson"
+                    },
+                    "Set_ProductHeaderHTTPRequestLink": {
+                        "inputs": {
+                            "name": "ProductHeaderHTTPRequestLink",
+                            "value": "@{replace(body('Parse_Products_Headers')?['Link'], '>; rel=\"next\"','')}"
+                        },
+                        "runAfter": {
+                            "Parse_Products_Headers": [
+                                "SUCCEEDED"
+                            ]
+                        },
+                        "type": "SetVariable"
+                    },
+                    "Set_ProductHeaderLink": {
+                        "inputs": {
+                            "name": "ProductHeaderLink",
+                            "value": "@{replace(variables('ProductHeaderHTTPRequestLink'), '<https','https')}"
+                        },
+                        "runAfter": {
+                            "Set_ProductHeaderHTTPRequestLink": [
+                                "SUCCEEDED"
+                            ]
+                        },
+                        "type": "SetVariable"
+                    },
+                    "Until": {
+                        "actions": {
+                            "Check_if_More_Products_to_be_Imported": {
+                                "actions": {
+                                    "Check_if_there_are_more_products_to_import": {
+                                        "actions": {
+                                            "Set_HTTPSubLinkVariable_2": {
+                                                "inputs": {
+                                                    "name": "HTTPSubLinkVariable",
+                                                    "value": "@{replace(variables('ProductHeaderHTTPRequestLink'), '>; rel=\"next\"','')}"
+                                                },
+                                                "runAfter": {
+                                                    "Set_ProductHeaderHTTPRequestLink_2": [
+                                                        "SUCCEEDED"
+                                                    ]
+                                                },
+                                                "type": "SetVariable"
+                                            },
+                                            "Set_ProductHeaderHTTPRequestLink_2": {
+                                                "inputs": {
+                                                    "name": "ProductHeaderHTTPRequestLink",
+                                                    "value": "@{split(body('Parse_More_Products')?['Link'],',')[1]}"
+                                                },
+                                                "type": "SetVariable"
+                                            },
+                                            "Set_ProductHeaderLink_2": {
+                                                "inputs": {
+                                                    "name": "ProductHeaderLink",
+                                                    "value": "@{replace(variables('HTTPSubLinkVariable'),'<https','https')}"
+                                                },
+                                                "runAfter": {
+                                                    "Set_HTTPSubLinkVariable_2": [
+                                                        "SUCCEEDED"
+                                                    ]
+                                                },
+                                                "type": "SetVariable"
+                                            }
+                                        },
+                                        "else": {
+                                            "actions": {}
+                                        },
+                                        "expression": {
+                                            "and": [
+                                                {
+                                                    "contains": [
+                                                        "@body('Parse_More_Products')?['Link']",
+                                                        "next"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        "runAfter": {
+                                            "Parse_More_Products": [
+                                                "SUCCEEDED"
+                                            ]
+                                        },
+                                        "type": "If"
+                                    },
+                                    "Parse_More_Products": {
+                                        "inputs": {
+                                            "content": "@outputs('Shopify_Get_More_Products')?['headers']",
+                                            "schema": {
+                                                "properties": {
+                                                    "Alt-Svc": {
+                                                        "type": "string"
+                                                    },
+                                                    "CF-Cache-Status": {
+                                                        "type": "string"
+                                                    },
+                                                    "CF-RAY": {
+                                                        "type": "string"
+                                                    },
+                                                    "Connection": {
+                                                        "type": "string"
+                                                    },
+                                                    "Content-Security-Policy": {
+                                                        "type": "string"
+                                                    },
+                                                    "Content-Type": {
+                                                        "type": "string"
+                                                    },
+                                                    "Date": {
+                                                        "type": "string"
+                                                    },
+                                                    "HTTP_X_SHOPIFY_SHOP_API_CALL_LIMIT": {
+                                                        "type": "string"
+                                                    },
+                                                    "Link": {
+                                                        "type": "string"
+                                                    },
+                                                    "NEL": {
+                                                        "type": "string"
+                                                    },
+                                                    "Referrer-Policy": {
+                                                        "type": "string"
+                                                    },
+                                                    "Report-To": {
+                                                        "type": "string"
+                                                    },
+                                                    "Server": {
+                                                        "type": "string"
+                                                    },
+                                                    "Server-Timing": {
+                                                        "type": "string"
+                                                    },
+                                                    "Strict-Transport-Security": {
+                                                        "type": "string"
+                                                    },
+                                                    "Transfer-Encoding": {
+                                                        "type": "string"
+                                                    },
+                                                    "Vary": {
+                                                        "type": "string"
+                                                    },
+                                                    "X-Content-Type-Options": {
+                                                        "type": "string"
+                                                    },
+                                                    "X-Dc": {
+                                                        "type": "string"
+                                                    },
+                                                    "X-Download-Options": {
+                                                        "type": "string"
+                                                    },
+                                                    "X-Frame-Options": {
+                                                        "type": "string"
+                                                    },
+                                                    "X-Permitted-Cross-Domain-Policies": {
+                                                        "type": "string"
+                                                    },
+                                                    "X-Request-ID": {
+                                                        "type": "string"
+                                                    },
+                                                    "X-ShardId": {
+                                                        "type": "string"
+                                                    },
+                                                    "X-ShopId": {
+                                                        "type": "string"
+                                                    },
+                                                    "X-Shopify-API-Terms": {
+                                                        "type": "string"
+                                                    },
+                                                    "X-Shopify-API-Version": {
+                                                        "type": "string"
+                                                    },
+                                                    "X-Shopify-Shop-Api-Call-Limit": {
+                                                        "type": "string"
+                                                    },
+                                                    "X-Shopify-Stage": {
+                                                        "type": "string"
+                                                    },
+                                                    "X-Sorting-Hat-PodId": {
+                                                        "type": "string"
+                                                    },
+                                                    "X-Sorting-Hat-ShopId": {
+                                                        "type": "string"
+                                                    },
+                                                    "X-Stats-ApiClientId": {
+                                                        "type": "string"
+                                                    },
+                                                    "X-Stats-ApiPermissionId": {
+                                                        "type": "string"
+                                                    },
+                                                    "X-Stats-UserId": {
+                                                        "type": "string"
+                                                    },
+                                                    "X-XSS-Protection": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        },
+                                        "type": "ParseJson"
+                                    }
+                                },
+                                "else": {
+                                    "actions": {
+                                        "Set_ProductHeaderLink_to_stop_While_Loop": {
+                                            "inputs": {
+                                                "name": "ProductHeaderLink",
+                                                "value": "N/A"
+                                            },
+                                            "type": "SetVariable"
+                                        }
+                                    }
+                                },
+                                "expression": {
+                                    "and": [
+                                        {
+                                            "contains": [
+                                                "@outputs('Shopify_Get_More_Products')?['headers']",
+                                                "Link"
+                                            ]
+                                        }
+                                    ]
+                                },
+                                "runAfter": {
+                                    "For_each_Additional_Product": [
+                                        "SUCCEEDED"
+                                    ]
+                                },
+                                "type": "If"
+                            },
+                            "For_each_Additional_Product": {
+                                "actions": {
+                                    "For_each_Additional_Product_Variant": {
+                                        "actions": {
+                                            "Check_Additional_Product_SKU_and_Title": {
+                                                "actions": {
+                                                    "Create_Products_SP_2": {
+                                                        "inputs": {
+                                                            "body": {
+                                                                "Caption": "@items('For_each_Additional_Product')?['title']",
+                                                                "GarmentRange": "@triggerBody()?['AccountCode']",
+                                                                "GarmentType": "@triggerBody()?['AccountCode']",
+                                                                "ProductSKU": "@items('For_each_Additional_Product_Variant')?['sku']"
+                                                            },
+                                                            "host": {
+                                                                "connection": {
+                                                                    "referenceName": "sql"
+                                                                }
+                                                            },
+                                                            "method": "post",
+                                                            "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Shopify_CreateProducts]'))}"
+                                                        },
+                                                        "type": "ApiConnection"
+                                                    }
+                                                },
+                                                "else": {
+                                                    "actions": {}
+                                                },
+                                                "expression": {
+                                                    "and": [
+                                                        {
+                                                            "not": {
+                                                                "equals": [
+                                                                    "@item()?['title']",
+                                                                    "Default Title"
+                                                                ]
+                                                            }
+                                                        },
+                                                        {
+                                                            "not": {
+                                                                "equals": [
+                                                                    "@item()?['sku']",
+                                                                    ""
+                                                                ]
+                                                            }
+                                                        }
+                                                    ]
+                                                },
+                                                "type": "If"
+                                            }
+                                        },
+                                        "foreach": "@item()?['variants']",
+                                        "type": "Foreach"
+                                    }
+                                },
+                                "foreach": "@body('Parse_Additional_Products')?['products']",
+                                "runAfter": {
+                                    "Parse_Additional_Products": [
+                                        "SUCCEEDED"
+                                    ]
+                                },
+                                "type": "Foreach"
+                            },
+                            "Parse_Additional_Products": {
+                                "inputs": {
+                                    "content": "@body('Shopify_Get_More_Products')",
+                                    "schema": {
+                                        "properties": {
+                                            "products": {
+                                                "items": {
+                                                    "properties": {
+                                                        "admin_graphql_api_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "body_html": {
+                                                            "type": "string"
+                                                        },
+                                                        "created_at": {
+                                                            "type": "string"
+                                                        },
+                                                        "handle": {
+                                                            "type": "string"
+                                                        },
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "image": {
+                                                            "properties": {
+                                                                "admin_graphql_api_id": {
+                                                                    "type": "string"
+                                                                },
+                                                                "alt": {},
+                                                                "created_at": {
+                                                                    "type": "string"
+                                                                },
+                                                                "height": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "id": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "position": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "product_id": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "src": {
+                                                                    "type": "string"
+                                                                },
+                                                                "updated_at": {
+                                                                    "type": "string"
+                                                                },
+                                                                "variant_ids": {
+                                                                    "type": "array"
+                                                                },
+                                                                "width": {
+                                                                    "type": "integer"
+                                                                }
+                                                            },
+                                                            "type": [
+                                                                "object",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "images": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "admin_graphql_api_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "alt": {},
+                                                                    "created_at": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "height": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "position": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "product_id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "src": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "updated_at": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "variant_ids": {
+                                                                        "type": "array"
+                                                                    },
+                                                                    "width": {
+                                                                        "type": "integer"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "product_id",
+                                                                    "position",
+                                                                    "created_at",
+                                                                    "updated_at",
+                                                                    "alt",
+                                                                    "width",
+                                                                    "height",
+                                                                    "src",
+                                                                    "variant_ids",
+                                                                    "admin_graphql_api_id"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "options": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "position": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "product_id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "values": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "product_id",
+                                                                    "name",
+                                                                    "position",
+                                                                    "values"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "product_type": {
+                                                            "type": "string"
+                                                        },
+                                                        "published_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "published_scope": {
+                                                            "type": "string"
+                                                        },
+                                                        "status": {
+                                                            "type": "string"
+                                                        },
+                                                        "tags": {
+                                                            "type": "string"
+                                                        },
+                                                        "template_suffix": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "title": {
+                                                            "type": "string"
+                                                        },
+                                                        "updated_at": {
+                                                            "type": "string"
+                                                        },
+                                                        "variants": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "admin_graphql_api_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "barcode": {},
+                                                                    "compare_at_price": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "created_at": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "fulfillment_service": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "grams": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "image_id": {},
+                                                                    "inventory_item_id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "inventory_management": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "inventory_policy": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "inventory_quantity": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "old_inventory_quantity": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "option1": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "option2": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "option3": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "position": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "price": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "product_id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "requires_shipping": {
+                                                                        "type": "boolean"
+                                                                    },
+                                                                    "sku": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "taxable": {
+                                                                        "type": "boolean"
+                                                                    },
+                                                                    "title": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "updated_at": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "weight": {
+                                                                        "type": "number"
+                                                                    },
+                                                                    "weight_unit": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "product_id",
+                                                                    "title",
+                                                                    "price"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "vendor": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "title",
+                                                        "body_html",
+                                                        "vendor",
+                                                        "product_type",
+                                                        "created_at",
+                                                        "handle",
+                                                        "updated_at",
+                                                        "template_suffix",
+                                                        "status",
+                                                        "published_scope",
+                                                        "tags",
+                                                        "admin_graphql_api_id",
+                                                        "variants",
+                                                        "options",
+                                                        "images"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "type": "array"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                },
+                                "runAfter": {
+                                    "Shopify_Get_More_Products": [
+                                        "SUCCEEDED"
+                                    ]
+                                },
+                                "type": "ParseJson"
+                            },
+                            "Shopify_Get_More_Products": {
+                                "inputs": {
+                                    "headers": {
+                                        "X-Shopify-Access-Token": "@{body('Get_Bearer_Token_Secret')?['value']}"
+                                    },
+                                    "method": "GET",
+                                    "uri": "@variables('ProductHeaderLink')"
+                                },
+                                "runtimeConfiguration": {
+                                    "contentTransfer": {
+                                        "transferMode": "Chunked"
+                                    }
+                                },
+                                "type": "Http"
+                            }
+                        },
+                        "expression": "@equals(variables('ProductHeaderLink'),'N/A')",
+                        "limit": {
+                            "count": 60,
+                            "timeout": "PT1H"
+                        },
+                        "runAfter": {
+                            "Set_ProductHeaderLink": [
+                                "SUCCEEDED"
+                            ]
+                        },
+                        "type": "Until"
+                    }
+                },
+                "else": {
+                    "actions": {}
+                },
+                "expression": {
+                    "and": [
+                        {
+                            "contains": [
+                                "@outputs('Get_Products_from_Shopify')?['headers']",
+                                "Link"
+                            ]
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "For_each_Product": [
+                        "SUCCEEDED",
+                        "TIMEDOUT",
+                        "SKIPPED",
+                        "FAILED"
+                    ]
+                },
+                "type": "If"
+            },
+            "For_each_Product": {
+                "actions": {
+                    "For_each_Variant": {
+                        "actions": {
+                            "Check_Title_and_Sku_Specified": {
+                                "actions": {
+                                    "Create_Products_SP": {
+                                        "inputs": {
+                                            "body": {
+                                                "Caption": "@items('For_each_Product')?['title']",
+                                                "GarmentRange": "@triggerBody()?['AccountCode']",
+                                                "GarmentType": "@triggerBody()?['AccountCode']",
+                                                "ProductSKU": "@items('For_each_Variant')?['sku']"
+                                            },
+                                            "host": {
+                                                "connection": {
+                                                    "referenceName": "sql"
+                                                }
+                                            },
+                                            "method": "post",
+                                            "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Shopify_CreateProducts]'))}"
+                                        },
+                                        "type": "ApiConnection"
+                                    }
+                                },
+                                "else": {
+                                    "actions": {}
+                                },
+                                "expression": {
+                                    "and": [
+                                        {
+                                            "not": {
+                                                "equals": [
+                                                    "@item()?['sku']",
+                                                    ""
+                                                ]
+                                            }
+                                        },
+                                        {
+                                            "not": {
+                                                "equals": [
+                                                    "@item()?['title']",
+                                                    "Default Title"
+                                                ]
+                                            }
+                                        }
+                                    ]
+                                },
+                                "type": "If"
+                            }
+                        },
+                        "foreach": "@item()?['variants']",
+                        "type": "Foreach"
+                    }
+                },
+                "foreach": "@body('Parse_Products_JSON')?['products']",
+                "runAfter": {
+                    "Parse_Products_JSON": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "Foreach"
+            },
+            "Get_Bearer_Token_Secret": {
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "referenceName": "keyvault"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/secrets/@{encodeURIComponent(concat(triggerBody()?['AccountCode'],'-Access-Token'))}/value"
+                },
+                "runAfter": {
+                    "Initialize_HTTPSubLinkVariable": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "ApiConnection"
+            },
+            "Get_Products_from_Shopify": {
+                "inputs": {
+                    "headers": {
+                        "X-Shopify-Access-Token": "@{body('Get_Bearer_Token_Secret')?['value']}"
+                    },
+                    "method": "GET",
+                    "uri": "https://@{triggerBody()?['ShopId']}.myshopify.com/admin/api/2023-01/products.json?updated_at_min=@{triggerBody()?['LastRunTime']}&limit=250"
+                },
+                "runAfter": {
+                    "Get_Bearer_Token_Secret": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "runtimeConfiguration": {
+                    "contentTransfer": {
+                        "transferMode": "Chunked"
+                    }
+                },
+                "type": "Http"
+            },
+            "Initialize_HTTPSubLinkVariable": {
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "HTTPSubLinkVariable",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Initialize_RunTime": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "InitializeVariable"
+            },
+            "Initialize_ProductHeaderHTTPRequestLink": {
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "ProductHeaderHTTPRequestLink",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Initialize_ProductHeaderLink": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "InitializeVariable"
+            },
+            "Initialize_ProductHeaderLink": {
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "ProductHeaderLink",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "runAfter": {},
+                "type": "InitializeVariable"
+            },
+            "Initialize_RunTime": {
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "RunTime",
+                            "type": "string",
+                            "value": "@{utcNow()}"
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Initialize_ProductHeaderHTTPRequestLink": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "InitializeVariable"
+            },
+            "Parse_Products_JSON": {
+                "inputs": {
+                    "content": "@body('Get_Products_from_Shopify')",
+                    "schema": {
+                        "properties": {
+                            "products": {
+                                "items": {
+                                    "properties": {
+                                        "admin_graphql_api_id": {
+                                            "type": "string"
+                                        },
+                                        "body_html": {
+                                            "type": "string"
+                                        },
+                                        "created_at": {
+                                            "type": "string"
+                                        },
+                                        "handle": {
+                                            "type": "string"
+                                        },
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "image": {
+                                            "properties": {
+                                                "admin_graphql_api_id": {
+                                                    "type": "string"
+                                                },
+                                                "alt": {},
+                                                "created_at": {
+                                                    "type": "string"
+                                                },
+                                                "height": {
+                                                    "type": "integer"
+                                                },
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "position": {
+                                                    "type": "integer"
+                                                },
+                                                "product_id": {
+                                                    "type": "integer"
+                                                },
+                                                "src": {
+                                                    "type": "string"
+                                                },
+                                                "updated_at": {
+                                                    "type": "string"
+                                                },
+                                                "variant_ids": {
+                                                    "type": "array"
+                                                },
+                                                "width": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "type": [
+                                                "object",
+                                                "null"
+                                            ]
+                                        },
+                                        "images": {
+                                            "items": {
+                                                "properties": {
+                                                    "admin_graphql_api_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "alt": {},
+                                                    "created_at": {
+                                                        "type": "string"
+                                                    },
+                                                    "height": {
+                                                        "type": "integer"
+                                                    },
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "position": {
+                                                        "type": "integer"
+                                                    },
+                                                    "product_id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "src": {
+                                                        "type": "string"
+                                                    },
+                                                    "updated_at": {
+                                                        "type": "string"
+                                                    },
+                                                    "variant_ids": {
+                                                        "type": "array"
+                                                    },
+                                                    "width": {
+                                                        "type": "integer"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "product_id",
+                                                    "position",
+                                                    "created_at",
+                                                    "updated_at",
+                                                    "alt",
+                                                    "width",
+                                                    "height",
+                                                    "src",
+                                                    "variant_ids",
+                                                    "admin_graphql_api_id"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        },
+                                        "options": {
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "position": {
+                                                        "type": "integer"
+                                                    },
+                                                    "product_id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "values": {
+                                                        "items": {
+                                                            "type": "string"
+                                                        },
+                                                        "type": "array"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "product_id",
+                                                    "name",
+                                                    "position",
+                                                    "values"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        },
+                                        "product_type": {
+                                            "type": "string"
+                                        },
+                                        "published_at": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "published_scope": {
+                                            "type": "string"
+                                        },
+                                        "status": {
+                                            "type": "string"
+                                        },
+                                        "tags": {
+                                            "type": "string"
+                                        },
+                                        "template_suffix": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "title": {
+                                            "type": "string"
+                                        },
+                                        "updated_at": {
+                                            "type": "string"
+                                        },
+                                        "variants": {
+                                            "items": {
+                                                "properties": {
+                                                    "admin_graphql_api_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "barcode": {},
+                                                    "compare_at_price": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "created_at": {
+                                                        "type": "string"
+                                                    },
+                                                    "fulfillment_service": {
+                                                        "type": "string"
+                                                    },
+                                                    "grams": {
+                                                        "type": "integer"
+                                                    },
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "image_id": {},
+                                                    "inventory_item_id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "inventory_management": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "inventory_policy": {
+                                                        "type": "string"
+                                                    },
+                                                    "inventory_quantity": {
+                                                        "type": "integer"
+                                                    },
+                                                    "old_inventory_quantity": {
+                                                        "type": "integer"
+                                                    },
+                                                    "option1": {
+                                                        "type": "string"
+                                                    },
+                                                    "option2": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "option3": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "position": {
+                                                        "type": "integer"
+                                                    },
+                                                    "price": {
+                                                        "type": "string"
+                                                    },
+                                                    "product_id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "requires_shipping": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "sku": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "taxable": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "title": {
+                                                        "type": "string"
+                                                    },
+                                                    "updated_at": {
+                                                        "type": "string"
+                                                    },
+                                                    "weight": {
+                                                        "type": "number"
+                                                    },
+                                                    "weight_unit": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "product_id",
+                                                    "title",
+                                                    "price"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        },
+                                        "vendor": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "title",
+                                        "body_html",
+                                        "vendor",
+                                        "product_type",
+                                        "created_at",
+                                        "handle",
+                                        "updated_at",
+                                        "template_suffix",
+                                        "status",
+                                        "published_scope",
+                                        "tags",
+                                        "admin_graphql_api_id",
+                                        "variants",
+                                        "options",
+                                        "images"
+                                    ],
+                                    "type": "object"
+                                },
+                                "type": "array"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "runAfter": {
+                    "Get_Products_from_Shopify": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "ParseJson"
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "triggers": {
+            "When_a_HTTP_request_is_received": {
+                "inputs": {
+                    "schema": {
+                        "properties": {
+                            "AccountCode": {
+                                "type": "string"
+                            },
+                            "Active": {
+                                "type": "boolean"
+                            },
+                            "Endpoint": {
+                                "type": "string"
+                            },
+                            "ID": {
+                                "type": "integer"
+                            },
+                            "LastRunTime": {
+                                "type": "string"
+                            },
+                            "Name": {
+                                "type": "string"
+                            },
+                            "NotifyCustomers": {
+                                "type": "boolean"
+                            },
+                            "Operation": {
+                                "type": "string"
+                            },
+                            "OrderNumberPrefix": {
+                                "type": "string"
+                            },
+                            "ShopId": {
+                                "type": "string"
+                            },
+                            "SizeConversion": {
+                                "type": "boolean"
+                            },
+                            "email": {
+                                "type": "string"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "kind": "Http",
+                "type": "Request"
+            }
+        }
+    },
+    "kind": "Stateful"
+}

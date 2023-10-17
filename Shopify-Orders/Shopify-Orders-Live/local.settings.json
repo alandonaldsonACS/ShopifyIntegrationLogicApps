@@ -1,0 +1,9 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "APP_KIND": "workflowapp",
+    "ProjectDirectoryPath": "c:\\Users\\Alan.Donaldson\\source\\repos\\ShopifyIntegration\\Shopify-Orders\\Shopify-Orders-Live",
+    "FUNCTIONS_WORKER_RUNTIME": "node"
+  }
+}

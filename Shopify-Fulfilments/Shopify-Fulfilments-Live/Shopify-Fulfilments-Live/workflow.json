@@ -1,0 +1,830 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "Check_For_Orders": {
+                "actions": {
+                    "For_Each_Order": {
+                        "actions": {
+                            "Add_Return_Info_to_Order": {
+                                "inputs": {
+                                    "body": {
+                                        "order": {
+                                            "id": "@item()?['shopify_OrderId']",
+                                            "note": "@{Concat(item()?['TrackingURL'],item()?['Return_Tracking_Number1'])},@{Concat(item()?['TrackingURL'],item()?['Return_Tracking_Number2'])}"
+                                        }
+                                    },
+                                    "headers": {
+                                        "Content-Type": "application/json",
+                                        "X-Shopify-Access-Token": "@{body('Get_Shopify_Account_Token')?['value']}"
+                                    },
+                                    "method": "PUT",
+                                    "uri": "https://@{triggerBody()?['ShopId']}.myshopify.com/admin/api/2022-10/orders/@{items('For_Each_Order')?['shopify_OrderId']}.json"
+                                },
+                                "runAfter": {
+                                    "Shopify_-_Get_Fulfilment_Order": [
+                                        "SUCCEEDED"
+                                    ]
+                                },
+                                "runtimeConfiguration": {
+                                    "contentTransfer": {
+                                        "transferMode": "Chunked"
+                                    }
+                                },
+                                "type": "Http"
+                            },
+                            "Check_Fulfilment_Order_Returned_Successfully": {
+                                "actions": {
+                                    "For_Each_Fulfilment_Order": {
+                                        "actions": {
+                                            "For_Each_Fulfilment_Order_Line_Item": {
+                                                "actions": {
+                                                    "Update_Fulfilment_Order_Lines_Details_SP": {
+                                                        "inputs": {
+                                                            "body": {
+                                                                "accountCode": "@triggerBody()?['AccountCode']",
+                                                                "fulfilment_order_id": "@item()?['fulfillment_order_id']",
+                                                                "fulfilment_orders_line_id": "@item()?['id']",
+                                                                "locationId": "@variables('Assigned Location')",
+                                                                "shopifyOrderId": "@variables('ShopifyOrderId')",
+                                                                "shopify_lineItemsId": "@item()?['line_item_id']"
+                                                            },
+                                                            "host": {
+                                                                "connection": {
+                                                                    "referenceName": "sql"
+                                                                }
+                                                            },
+                                                            "method": "post",
+                                                            "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Shopify_Update_Fulfilment_Line_Details]'))}"
+                                                        },
+                                                        "type": "ApiConnection"
+                                                    }
+                                                },
+                                                "foreach": "@item()?['line_items']",
+                                                "runAfter": {
+                                                    "Set_Assigned_Location_": [
+                                                        "SUCCEEDED"
+                                                    ]
+                                                },
+                                                "type": "Foreach"
+                                            },
+                                            "Set_Assigned_Location_": {
+                                                "inputs": {
+                                                    "name": "Assigned Location",
+                                                    "value": "@{item()?['assigned_location_id']}"
+                                                },
+                                                "type": "SetVariable"
+                                            }
+                                        },
+                                        "foreach": "@body('Parse_Fulfilfment_Order')?['fulfillment_orders']",
+                                        "runAfter": {
+                                            "Parse_Fulfilfment_Order": [
+                                                "SUCCEEDED"
+                                            ]
+                                        },
+                                        "type": "Foreach"
+                                    },
+                                    "Parse_Fulfilfment_Order": {
+                                        "inputs": {
+                                            "content": "@body('Shopify_-_Get_Fulfilment_Order')",
+                                            "schema": {
+                                                "properties": {
+                                                    "fulfillment_orders": {
+                                                        "items": {
+                                                            "properties": {
+                                                                "assigned_location": {
+                                                                    "properties": {
+                                                                        "address1": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "address2": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "city": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "country_code": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "location_id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "name": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "phone": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "province": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "zip": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                },
+                                                                "assigned_location_id": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "delivery_method": {
+                                                                    "properties": {
+                                                                        "id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "max_delivery_date_time": {},
+                                                                        "method_type": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "min_delivery_date_time": {}
+                                                                    },
+                                                                    "type": "object"
+                                                                },
+                                                                "destination": {
+                                                                    "properties": {
+                                                                        "address1": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "address2": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "city": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "company": {},
+                                                                        "country": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "email": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "first_name": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "last_name": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "phone": {},
+                                                                        "province": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "zip": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                },
+                                                                "fulfill_at": {
+                                                                    "type": "string"
+                                                                },
+                                                                "fulfill_by": {},
+                                                                "fulfillment_holds": {
+                                                                    "type": "array"
+                                                                },
+                                                                "id": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "international_duties": {},
+                                                                "line_items": {
+                                                                    "items": {
+                                                                        "properties": {
+                                                                            "fulfillable_quantity": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "fulfillment_order_id": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "id": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "inventory_item_id": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "line_item_id": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "quantity": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "shop_id": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "variant_id": {
+                                                                                "type": "integer"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "id",
+                                                                            "shop_id",
+                                                                            "fulfillment_order_id",
+                                                                            "quantity",
+                                                                            "line_item_id",
+                                                                            "inventory_item_id",
+                                                                            "fulfillable_quantity",
+                                                                            "variant_id"
+                                                                        ],
+                                                                        "type": "object"
+                                                                    },
+                                                                    "type": "array"
+                                                                },
+                                                                "merchant_requests": {
+                                                                    "type": "array"
+                                                                },
+                                                                "order_id": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "request_status": {
+                                                                    "type": "string"
+                                                                },
+                                                                "shop_id": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "status": {
+                                                                    "type": "string"
+                                                                },
+                                                                "supported_actions": {
+                                                                    "items": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": "array"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "id",
+                                                                "shop_id",
+                                                                "order_id",
+                                                                "assigned_location_id",
+                                                                "request_status",
+                                                                "status",
+                                                                "supported_actions",
+                                                                "destination",
+                                                                "line_items",
+                                                                "fulfill_at",
+                                                                "fulfill_by",
+                                                                "international_duties",
+                                                                "fulfillment_holds",
+                                                                "delivery_method",
+                                                                "assigned_location",
+                                                                "merchant_requests"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "type": "array"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        },
+                                        "type": "ParseJson"
+                                    }
+                                },
+                                "else": {
+                                    "actions": {}
+                                },
+                                "expression": {
+                                    "and": [
+                                        {
+                                            "equals": [
+                                                "@outputs('Shopify_-_Get_Fulfilment_Order')?['statusCode']",
+                                                200
+                                            ]
+                                        }
+                                    ]
+                                },
+                                "runAfter": {
+                                    "Add_Return_Info_to_Order": [
+                                        "SUCCEEDED"
+                                    ]
+                                },
+                                "type": "If"
+                            },
+                            "For_each_JSON_Item_returned_(Always_be_one)": {
+                                "actions": {
+                                    "For_Each_Fulfilment": {
+                                        "actions": {
+                                            "Check_Fulfilment_Post_to_Shopify_Status": {
+                                                "actions": {
+                                                    "Update_Fulfilment_Transmission_Status_SP_Success": {
+                                                        "inputs": {
+                                                            "body": {
+                                                                "accountCode": "@triggerBody()?['AccountCode']",
+                                                                "shopifyOrderId": "@variables('ShopifyOrderId')",
+                                                                "shopify_Response_Code": "@outputs('Post_Fulfilment_to_Shopify')?['statusCode']",
+                                                                "tranmissionStatus": 2
+                                                            },
+                                                            "host": {
+                                                                "connection": {
+                                                                    "referenceName": "sql"
+                                                                }
+                                                            },
+                                                            "method": "post",
+                                                            "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Shopify_Update_Fulfilment_TransmissionStatus]'))}"
+                                                        },
+                                                        "type": "ApiConnection"
+                                                    }
+                                                },
+                                                "else": {
+                                                    "actions": {
+                                                        "Update_Fulfilment_Transmission_Status_SP_Failure": {
+                                                            "inputs": {
+                                                                "body": {
+                                                                    "accountCode": "@triggerBody()?['AccountCode']",
+                                                                    "shopifyOrderId": "@variables('ShopifyOrderId')",
+                                                                    "shopify_Error": "@{body('Post_Fulfilment_to_Shopify')}",
+                                                                    "shopify_Response_Code": "@outputs('Post_Fulfilment_to_Shopify')?['statusCode']",
+                                                                    "tranmissionStatus": 5
+                                                                },
+                                                                "host": {
+                                                                    "connection": {
+                                                                        "referenceName": "sql"
+                                                                    }
+                                                                },
+                                                                "method": "post",
+                                                                "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Shopify_Update_Fulfilment_TransmissionStatus]'))}"
+                                                            },
+                                                            "type": "ApiConnection"
+                                                        }
+                                                    }
+                                                },
+                                                "expression": {
+                                                    "and": [
+                                                        {
+                                                            "equals": [
+                                                                "@outputs('Post_Fulfilment_to_Shopify')?['statusCode']",
+                                                                200
+                                                            ]
+                                                        }
+                                                    ]
+                                                },
+                                                "runAfter": {
+                                                    "Post_Fulfilment_to_Shopify": [
+                                                        "SUCCEEDED",
+                                                        "TIMEDOUT",
+                                                        "SKIPPED",
+                                                        "FAILED"
+                                                    ]
+                                                },
+                                                "type": "If"
+                                            },
+                                            "Post_Fulfilment_to_Shopify": {
+                                                "inputs": {
+                                                    "body": "@items('For_Each_Fulfilment')",
+                                                    "headers": {
+                                                        "Content-Type": "application/json",
+                                                        "X-Shopify-Access-Token": "@{body('Get_Shopify_Account_Token')?['value']}"
+                                                    },
+                                                    "method": "POST",
+                                                    "uri": "https://@{triggerBody()?['ShopId']}.myshopify.com/admin/api/2023-07/fulfillments.json"
+                                                },
+                                                "runtimeConfiguration": {
+                                                    "contentTransfer": {
+                                                        "transferMode": "Chunked"
+                                                    }
+                                                },
+                                                "type": "Http"
+                                            }
+                                        },
+                                        "foreach": "@body('Parse_Returned_FulfilmentJSON')?['Fulfilments']",
+                                        "runAfter": {
+                                            "Parse_Returned_FulfilmentJSON": [
+                                                "SUCCEEDED"
+                                            ]
+                                        },
+                                        "type": "Foreach"
+                                    },
+                                    "Parse_Returned_FulfilmentJSON": {
+                                        "inputs": {
+                                            "content": "@items('For_each_JSON_Item_returned_(Always_be_one)')?['FulfilmentsJSON']",
+                                            "schema": {
+                                                "properties": {
+                                                    "Fulfilments": {
+                                                        "items": {
+                                                            "properties": {
+                                                                "fulfillment": {
+                                                                    "properties": {
+                                                                        "line_items_by_fulfillment_order": {
+                                                                            "items": {
+                                                                                "properties": {
+                                                                                    "fulfillment_order_id": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "fulfillment_order_line_items": {
+                                                                                        "items": {
+                                                                                            "properties": {
+                                                                                                "id": {
+                                                                                                    "type": "integer"
+                                                                                                },
+                                                                                                "quantity": {
+                                                                                                    "type": "integer"
+                                                                                                }
+                                                                                            },
+                                                                                            "required": [
+                                                                                                "id",
+                                                                                                "quantity"
+                                                                                            ],
+                                                                                            "type": "object"
+                                                                                        },
+                                                                                        "type": "array"
+                                                                                    }
+                                                                                },
+                                                                                "required": [
+                                                                                    "fulfillment_order_id",
+                                                                                    "fulfillment_order_line_items"
+                                                                                ],
+                                                                                "type": "object"
+                                                                            },
+                                                                            "type": "array"
+                                                                        },
+                                                                        "message": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "notify_customer": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "tracking_info": {
+                                                                            "properties": {
+                                                                                "company": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "number": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "type": "object"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "fulfillment"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "type": "array"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        },
+                                        "type": "ParseJson"
+                                    }
+                                },
+                                "foreach": "@body('Parse_Fulfilment_Lines_SP_JSON')?['Table1']",
+                                "runAfter": {
+                                    "Parse_Fulfilment_Lines_SP_JSON": [
+                                        "SUCCEEDED"
+                                    ]
+                                },
+                                "type": "Foreach"
+                            },
+                            "Get_Fulfilment_Lines_to_Transmit_SP": {
+                                "inputs": {
+                                    "body": {
+                                        "NotifyCustomers": "@triggerBody()?['NotifyCustomers']",
+                                        "accountCode": "@triggerBody()?['AccountCode']",
+                                        "shopifyOrderId": "@variables('ShopifyOrderId')"
+                                    },
+                                    "host": {
+                                        "connection": {
+                                            "referenceName": "sql"
+                                        }
+                                    },
+                                    "method": "post",
+                                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Shopify_Get_Fulfilment_Lines_To_Transmit]'))}"
+                                },
+                                "runAfter": {
+                                    "Check_Fulfilment_Order_Returned_Successfully": [
+                                        "SUCCEEDED"
+                                    ]
+                                },
+                                "type": "ApiConnection"
+                            },
+                            "Parse_Fulfilment_Lines_SP_JSON": {
+                                "inputs": {
+                                    "content": "@body('Get_Fulfilment_Lines_to_Transmit_SP')?['resultsets']",
+                                    "schema": {
+                                        "properties": {
+                                            "Table1": {
+                                                "items": {
+                                                    "properties": {
+                                                        "FulfilmentsJSON": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "FulfilmentsJSON"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "type": "array"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                },
+                                "runAfter": {
+                                    "Get_Fulfilment_Lines_to_Transmit_SP": [
+                                        "SUCCEEDED"
+                                    ]
+                                },
+                                "type": "ParseJson"
+                            },
+                            "Set_Shopify_Order_Id": {
+                                "inputs": {
+                                    "name": "ShopifyOrderId",
+                                    "value": "@item()?['shopify_OrderNumber']"
+                                },
+                                "type": "SetVariable"
+                            },
+                            "Shopify_-_Get_Fulfilment_Order": {
+                                "inputs": {
+                                    "headers": {
+                                        "X-Shopify-Access-Token": "@{body('Get_Shopify_Account_Token')?['value']}"
+                                    },
+                                    "method": "GET",
+                                    "uri": "https://@{triggerBody()?['ShopId']}.myshopify.com/admin/api/2022-10/orders/@{items('For_Each_Order')?['shopify_OrderId']}/fulfillment_orders.json"
+                                },
+                                "runAfter": {
+                                    "Set_Shopify_Order_Id": [
+                                        "SUCCEEDED"
+                                    ]
+                                },
+                                "runtimeConfiguration": {
+                                    "contentTransfer": {
+                                        "transferMode": "Chunked"
+                                    }
+                                },
+                                "type": "Http"
+                            }
+                        },
+                        "foreach": "@body('Parse_Fulfilments_To_Transmit')?['Table1']",
+                        "runAfter": {
+                            "Get_Shopify_Account_Token": [
+                                "SUCCEEDED"
+                            ]
+                        },
+                        "type": "Foreach"
+                    },
+                    "Get_Shopify_Account_Token": {
+                        "inputs": {
+                            "host": {
+                                "connection": {
+                                    "referenceName": "keyvault"
+                                }
+                            },
+                            "method": "get",
+                            "path": "/secrets/@{encodeURIComponent(concat(triggerBody()?['AccountCode'],'-Access-Token'))}/value"
+                        },
+                        "type": "ApiConnection"
+                    }
+                },
+                "else": {
+                    "actions": {}
+                },
+                "expression": {
+                    "and": [
+                        {
+                            "not": {
+                                "equals": [
+                                    "@empty(body('Parse_Fulfilments_To_Transmit')?['Table1'])",
+                                    true
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Parse_Fulfilments_To_Transmit": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "If"
+            },
+            "Get_Fulfilments_to_Transmit_SP": {
+                "inputs": {
+                    "body": {
+                        "accountCode": "@triggerBody()?['AccountCode']"
+                    },
+                    "host": {
+                        "connection": {
+                            "referenceName": "sql"
+                        }
+                    },
+                    "method": "post",
+                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Shopify_Get_Fulfilments_To_Transmit]'))}"
+                },
+                "runAfter": {
+                    "Initialize_Assigned_Location_": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "ApiConnection"
+            },
+            "Initialize_Assigned_Location_": {
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "Assigned Location",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Initialize_Shopify_Order_Id": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "InitializeVariable"
+            },
+            "Initialize_Shopify_Order_Id": {
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "ShopifyOrderId",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Set_Runtime": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "InitializeVariable"
+            },
+            "Parse_Fulfilments_To_Transmit": {
+                "inputs": {
+                    "content": "@body('Get_Fulfilments_to_Transmit_SP')?['resultsets']",
+                    "schema": {
+                        "properties": {
+                            "Table1": {
+                                "items": {
+                                    "properties": {
+                                        "Return_Tracking_Number1": {
+                                            "type": "string"
+                                        },
+                                        "Return_Tracking_Number2": {
+                                            "type": "string"
+                                        },
+                                        "TrackingURL": {
+                                            "type": "string"
+                                        },
+                                        "partnerAccountCode": {
+                                            "type": "string"
+                                        },
+                                        "shopify_OrderId": {
+                                            "type": "integer"
+                                        },
+                                        "shopify_OrderNumber": {
+                                            "type": "string"
+                                        },
+                                        "shopify_TransmissionStatus": {
+                                            "type": "integer"
+                                        },
+                                        "tracking_Company": {
+                                            "type": "string"
+                                        },
+                                        "tracking_Number": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "partnerAccountCode",
+                                        "shopify_OrderNumber",
+                                        "shopify_OrderId",
+                                        "tracking_Company",
+                                        "tracking_Number",
+                                        "shopify_TransmissionStatus"
+                                    ],
+                                    "type": "object"
+                                },
+                                "type": "array"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "runAfter": {
+                    "Get_Fulfilments_to_Transmit_SP": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "ParseJson"
+            },
+            "Set_Runtime": {
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "RunTime",
+                            "type": "string",
+                            "value": "@{utcNow()}"
+                        }
+                    ]
+                },
+                "runAfter": {},
+                "type": "InitializeVariable"
+            },
+            "Update_Orchestrator_Last_Run_Time": {
+                "inputs": {
+                    "body": {
+                        "Date": "@variables('RunTime')",
+                        "ID": "@triggerBody()?['ID']"
+                    },
+                    "host": {
+                        "connection": {
+                            "referenceName": "sql"
+                        }
+                    },
+                    "method": "post",
+                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Shopify_Orchestrator_Update_LastRunTime]'))}"
+                },
+                "runAfter": {
+                    "Check_For_Orders": [
+                        "SUCCEEDED",
+                        "TIMEDOUT",
+                        "SKIPPED",
+                        "FAILED"
+                    ]
+                },
+                "type": "ApiConnection"
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "triggers": {
+            "When_a_HTTP_request_is_received": {
+                "inputs": {
+                    "schema": {
+                        "properties": {
+                            "ACSDeliveryAgent": {
+                                "type": "string"
+                            },
+                            "ACSDeliveryService": {
+                                "type": "string"
+                            },
+                            "AccountCode": {
+                                "type": "string"
+                            },
+                            "Active": {
+                                "type": "boolean"
+                            },
+                            "DeliveryTime": {
+                                "type": "integer"
+                            },
+                            "Email": {
+                                "type": "string"
+                            },
+                            "Endpoint": {
+                                "type": "string"
+                            },
+                            "ID": {
+                                "type": "integer"
+                            },
+                            "LastRunTime": {
+                                "type": "string"
+                            },
+                            "Name": {
+                                "type": "string"
+                            },
+                            "NotifyCustomers": {
+                                "type": "boolean"
+                            },
+                            "Operation": {
+                                "type": "string"
+                            },
+                            "OrderNumberPrefix": {
+                                "type": "string"
+                            },
+                            "SaturdayDelivery": {
+                                "type": "string"
+                            },
+                            "ShopId": {
+                                "type": "string"
+                            },
+                            "SizeConversion": {
+                                "type": "boolean"
+                            },
+                            "Username": {
+                                "type": "string"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "kind": "Http",
+                "type": "Request"
+            }
+        }
+    },
+    "kind": "Stateful"
+}

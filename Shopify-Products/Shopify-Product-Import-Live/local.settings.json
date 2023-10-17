@@ -1,0 +1,14 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "APP_KIND": "workflowapp",
+    "ProjectDirectoryPath": "c:\\Users\\Alan.Donaldson\\source\\repos\\ShopifyIntegration",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "WORKFLOWS_TENANT_ID": "83d4856d-be92-446d-89e0-0947fd271bce",
+    "WORKFLOWS_SUBSCRIPTION_ID": "11803d4d-2343-4c72-ab2c-bcc5c8378195",
+    "WORKFLOWS_RESOURCE_GROUP_NAME": "RG-Shopify-Partner-Integration-Live",
+    "WORKFLOWS_LOCATION_NAME": "uksouth",
+    "WORKFLOWS_MANAGEMENT_BASE_URI": "https://management.azure.com/"
+  }
+}

@@ -1,0 +1,927 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "Check_Orders_Call_was_Successful": {
+                "actions": {
+                    "Insert_or_Update_Orders": {
+                        "inputs": {
+                            "body": {
+                                "accountCode": "@triggerBody()?['AccountCode']",
+                                "json": "@{body('Select_Orders_JSON')}"
+                            },
+                            "host": {
+                                "connection": {
+                                    "referenceName": "sql"
+                                }
+                            },
+                            "method": "post",
+                            "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Shopify_InsertOrUpdateOrders]'))}"
+                        },
+                        "runAfter": {
+                            "Select_Orders_JSON": [
+                                "SUCCEEDED"
+                            ]
+                        },
+                        "type": "ApiConnection"
+                    },
+                    "Parse_Orders_JSON": {
+                        "inputs": {
+                            "content": "@body('Get_Shopify_Orders')",
+                            "schema": {
+                                "properties": {
+                                    "orders": {
+                                        "items": {
+                                            "properties": {
+                                                "created_at": {
+                                                    "type": "string"
+                                                },
+                                                "financial_status": {
+                                                    "type": "string"
+                                                },
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "order_number": {
+                                                    "type": "integer"
+                                                },
+                                                "updated_at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "created_at",
+                                                "financial_status",
+                                                "order_number",
+                                                "updated_at"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "type": "array"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        },
+                        "type": "ParseJson"
+                    },
+                    "Select_Orders_JSON": {
+                        "inputs": {
+                            "from": "@body('Parse_Orders_JSON')?['orders']",
+                            "select": {
+                                "Created_at": "@{slice(item()?['created_at'],0,19)}",
+                                "Financial_status": "@{item()?['financial_status']}",
+                                "Id": "@{item()?['id']}",
+                                "Order_number": "@{item()?['order_number']}",
+                                "Updated_at": "@{slice(item()?['updated_at'],0,19)}"
+                            }
+                        },
+                        "runAfter": {
+                            "Parse_Orders_JSON": [
+                                "SUCCEEDED"
+                            ]
+                        },
+                        "type": "Select"
+                    }
+                },
+                "else": {
+                    "actions": {}
+                },
+                "expression": {
+                    "and": [
+                        {
+                            "equals": [
+                                "@outputs('Get_Shopify_Orders')?['statusCode']",
+                                200
+                            ]
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Get_Shopify_Orders": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "If"
+            },
+            "Check_for_Orders": {
+                "actions": {
+                    "Update_Orchestrator_Runtime": {
+                        "inputs": {
+                            "body": {
+                                "Date": "@variables('RunTime')",
+                                "ID": "@triggerBody()?['ID']"
+                            },
+                            "host": {
+                                "connection": {
+                                    "referenceName": "sql"
+                                }
+                            },
+                            "method": "post",
+                            "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Shopify_Orchestrator_Update_LastRunTime]'))}"
+                        },
+                        "type": "ApiConnection"
+                    }
+                },
+                "else": {
+                    "actions": {}
+                },
+                "expression": {
+                    "and": [
+                        {
+                            "greater": [
+                                "@length(variables('Orders'))",
+                                0
+                            ]
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Check_if_there_are_Orders_to_Import": [
+                        "SUCCEEDED",
+                        "TIMEDOUT",
+                        "SKIPPED",
+                        "FAILED"
+                    ]
+                },
+                "type": "If"
+            },
+            "Check_if_there_are_Orders_to_Import": {
+                "actions": {
+                    "For_each_Order": {
+                        "actions": {
+                            "Check_if_Order_Returned_Successfully": {
+                                "actions": {
+                                    "Check_if_Convert_Orders_Successful": {
+                                        "actions": {
+                                            "For_each_Converted_Order": {
+                                                "actions": {
+                                                    "Call_Partner_API": {
+                                                        "inputs": {
+                                                            "authentication": {
+                                                                "password": "@{body('Get_API_Key_')?['value']}",
+                                                                "type": "Basic",
+                                                                "username": "@{triggerBody()?['Username']}"
+                                                            },
+                                                            "body": "@outputs('Compose_Order_JSON')",
+                                                            "headers": {
+                                                                "content-type": "application/json"
+                                                            },
+                                                            "method": "PUT",
+                                                            "uri": "@{body('Get_Partner_API_URL')?['value']}api/v1/orders@{item()?['OrderNumber']}"
+                                                        },
+                                                        "runAfter": {
+                                                            "Compose_Order_JSON": [
+                                                                "SUCCEEDED"
+                                                            ]
+                                                        },
+                                                        "runtimeConfiguration": {
+                                                            "contentTransfer": {
+                                                                "transferMode": "Chunked"
+                                                            }
+                                                        },
+                                                        "type": "Http"
+                                                    },
+                                                    "Check_Partner_API_worked": {
+                                                        "actions": {
+                                                            "Append_to_array_variable": {
+                                                                "inputs": {
+                                                                    "name": "Orders",
+                                                                    "value": "@outputs('Compose_Order_JSON')"
+                                                                },
+                                                                "runAfter": {
+                                                                    "Shopify_Update_Order_Status_-_Success": [
+                                                                        "SUCCEEDED"
+                                                                    ]
+                                                                },
+                                                                "type": "AppendToArrayVariable"
+                                                            },
+                                                            "Insert_Partner_Mapping_Details": {
+                                                                "inputs": {
+                                                                    "body": {
+                                                                        "AccountCode": "@triggerBody()?['AccountCode']",
+                                                                        "PartnerOrderNumber": "@items('For_each_Converted_Order')?['OrderNumber']"
+                                                                    },
+                                                                    "host": {
+                                                                        "connection": {
+                                                                            "referenceName": "sql"
+                                                                        }
+                                                                    },
+                                                                    "method": "post",
+                                                                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[InsertPartnerMappingDetails]'))}"
+                                                                },
+                                                                "runAfter": {
+                                                                    "Append_to_array_variable": [
+                                                                        "SUCCEEDED"
+                                                                    ]
+                                                                },
+                                                                "type": "ApiConnection"
+                                                            },
+                                                            "Shopify_Update_Order_Status_-_Success": {
+                                                                "inputs": {
+                                                                    "body": {
+                                                                        "Cancelled": false,
+                                                                        "accountCode": "@triggerBody()?['AccountCode']",
+                                                                        "orderNumber": "@items('For_each_Converted_Order')?['OrderNumber']",
+                                                                        "status": "Sucsess"
+                                                                    },
+                                                                    "host": {
+                                                                        "connection": {
+                                                                            "referenceName": "sql"
+                                                                        }
+                                                                    },
+                                                                    "method": "post",
+                                                                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Shopify_Update_ApiOrdersStatus]'))}"
+                                                                },
+                                                                "type": "ApiConnection"
+                                                            }
+                                                        },
+                                                        "else": {
+                                                            "actions": {
+                                                                "Parse_Partner_API_Body": {
+                                                                    "inputs": {
+                                                                        "content": "@body('Call_Partner_API')",
+                                                                        "schema": {
+                                                                            "properties": {
+                                                                                "AcsOrderRef": {},
+                                                                                "DeliveryAgent": {},
+                                                                                "DeliveryDate": {},
+                                                                                "DeliveryService": {},
+                                                                                "DispatchDate": {},
+                                                                                "EventDate": {},
+                                                                                "Issues": {
+                                                                                    "type": "array"
+                                                                                },
+                                                                                "OrderCancelled": {
+                                                                                    "type": "boolean"
+                                                                                },
+                                                                                "OrderNumber": {},
+                                                                                "ResponseDateTime": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "Status": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "type": "object"
+                                                                        }
+                                                                    },
+                                                                    "runAfter": {
+                                                                        "Shopify_Update_Order_Status_-_Failed": [
+                                                                            "SUCCEEDED"
+                                                                        ]
+                                                                    },
+                                                                    "type": "ParseJson"
+                                                                },
+                                                                "Send_Error_Email": {
+                                                                    "inputs": {
+                                                                        "body": {
+                                                                            "Body": "<p>Hi,</p><p>Order @{body('Parse_Partner_API_Body')?['OrderNumber']} - failed to send to ACS</p><br><p>Status - @{body('Parse_Partner_API_Body')?['Status']}</p><br><p>List of Issues - @{if(equals(empty(body('Parse_Partner_API_Body')?['Issues']),true),'No Further Issues',body('Parse_Partner_API_Body')?['Issues'])}</p><br><p>Please resolve the issues and resave the order to resend it to ACS. If you require further assistance with the issue, please contact helpdesk@acsclothing.co.uk.</p><br><p>Thanks,</p><p>ACS IT Team</p>",
+                                                                            "Importance": "Normal",
+                                                                            "MailboxAddress": "helpdesk@acsclothing.co.uk",
+                                                                            "Subject": "Failed to send ACS - @{outputs('Compose_Shopify_Order_Number')}",
+                                                                            "To": "@triggerBody()?['email']"
+                                                                        },
+                                                                        "host": {
+                                                                            "connection": {
+                                                                                "referenceName": "office365"
+                                                                            }
+                                                                        },
+                                                                        "method": "post",
+                                                                        "path": "/v2/SharedMailbox/Mail"
+                                                                    },
+                                                                    "runAfter": {
+                                                                        "Parse_Partner_API_Body": [
+                                                                            "SUCCEEDED"
+                                                                        ]
+                                                                    },
+                                                                    "type": "ApiConnection"
+                                                                },
+                                                                "Shopify_Update_Order_Status_-_Failed": {
+                                                                    "inputs": {
+                                                                        "body": {
+                                                                            "Cancelled": false,
+                                                                            "accountCode": "@triggerBody()?['AccountCode']",
+                                                                            "orderNumber": "@items('For_each_Converted_Order')?['OrderNumber']",
+                                                                            "status": "Failed"
+                                                                        },
+                                                                        "host": {
+                                                                            "connection": {
+                                                                                "referenceName": "sql"
+                                                                            }
+                                                                        },
+                                                                        "method": "post",
+                                                                        "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Shopify_Update_ApiOrdersStatus]'))}"
+                                                                    },
+                                                                    "type": "ApiConnection"
+                                                                }
+                                                            }
+                                                        },
+                                                        "expression": {
+                                                            "and": [
+                                                                {
+                                                                    "equals": [
+                                                                        "@outputs('Call_Partner_API')?['statusCode']",
+                                                                        200
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        },
+                                                        "runAfter": {
+                                                            "Call_Partner_API": [
+                                                                "SUCCEEDED"
+                                                            ]
+                                                        },
+                                                        "type": "If"
+                                                    },
+                                                    "Compose_Order_JSON": {
+                                                        "inputs": "@items('For_each_Converted_Order')",
+                                                        "type": "Compose"
+                                                    }
+                                                },
+                                                "foreach": "@body('Parse_Convert_Orders_JSON')?['Orders']",
+                                                "runAfter": {
+                                                    "Parse_Convert_Orders_JSON": [
+                                                        "SUCCEEDED"
+                                                    ]
+                                                },
+                                                "type": "Foreach"
+                                            },
+                                            "Parse_Convert_Orders_JSON": {
+                                                "inputs": {
+                                                    "content": "@body('Convert_Orders_Function_App')",
+                                                    "schema": {
+                                                        "properties": {
+                                                            "Orders": {
+                                                                "items": {
+                                                                    "properties": {
+                                                                        "AccountCode": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "DeliveryAgent": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "DeliveryCharge": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "DeliveryDate": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "DeliveryService": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "Delivery_Address1": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "Delivery_Address2": {},
+                                                                        "Delivery_City": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "Delivery_Postcode": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "DispatchDate": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "Email": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "EventDate": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "FirstName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "LastName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "Misc1": {},
+                                                                        "Misc10": {},
+                                                                        "Misc2": {},
+                                                                        "Misc3": {},
+                                                                        "Misc4": {},
+                                                                        "Misc5": {},
+                                                                        "Misc6": {},
+                                                                        "Misc7": {},
+                                                                        "Misc8": {},
+                                                                        "Misc9": {},
+                                                                        "MobilePhone": {},
+                                                                        "OrderCancelled": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "OrderDate": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "OrderItems": {
+                                                                            "type": "array"
+                                                                        },
+                                                                        "OrderNumber": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "WarehouseReturnDate": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "AccountCode",
+                                                                        "OrderNumber",
+                                                                        "OrderCancelled",
+                                                                        "OrderDate",
+                                                                        "DispatchDate",
+                                                                        "DeliveryDate",
+                                                                        "EventDate",
+                                                                        "WarehouseReturnDate",
+                                                                        "FirstName",
+                                                                        "LastName",
+                                                                        "MobilePhone",
+                                                                        "Email",
+                                                                        "Delivery_Address1",
+                                                                        "Delivery_Address2",
+                                                                        "Delivery_City",
+                                                                        "Delivery_Postcode",
+                                                                        "DeliveryAgent",
+                                                                        "DeliveryService",
+                                                                        "DeliveryCharge",
+                                                                        "Misc1",
+                                                                        "Misc2",
+                                                                        "Misc3",
+                                                                        "Misc4",
+                                                                        "Misc5",
+                                                                        "Misc6",
+                                                                        "Misc7",
+                                                                        "Misc8",
+                                                                        "Misc9",
+                                                                        "Misc10",
+                                                                        "OrderItems"
+                                                                    ],
+                                                                    "type": "object"
+                                                                },
+                                                                "type": "array"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    }
+                                                },
+                                                "type": "ParseJson"
+                                            }
+                                        },
+                                        "else": {
+                                            "actions": {}
+                                        },
+                                        "expression": {
+                                            "and": [
+                                                {
+                                                    "equals": [
+                                                        "@outputs('Convert_Orders_Function_App')?['statusCode']",
+                                                        200
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        "runAfter": {
+                                            "Convert_Orders_Function_App": [
+                                                "SUCCEEDED"
+                                            ]
+                                        },
+                                        "type": "If"
+                                    },
+                                    "Compose_ACS_Order_Number": {
+                                        "inputs": "@concat(triggerBody()?['OrderNumberPrefix'],'-',item()?['Shopify_OrderNumber'])",
+                                        "runAfter": {
+                                            "Compose_Output": [
+                                                "SUCCEEDED"
+                                            ]
+                                        },
+                                        "type": "Compose"
+                                    },
+                                    "Compose_Output": {
+                                        "inputs": "@union(body('Get_Order'), outputs('Compose_PartnerInfo'), outputs('Compose_Size_Conversions'))",
+                                        "runAfter": {
+                                            "Compose_Size_Conversions": [
+                                                "SUCCEEDED"
+                                            ]
+                                        },
+                                        "type": "Compose"
+                                    },
+                                    "Compose_PartnerInfo": {
+                                        "inputs": {
+                                            "partnerInfo": {
+                                                "SizeConversion": "@triggerBody()?['SizeConversion']",
+                                                "accountCode": "@triggerBody()?['AccountCode']",
+                                                "agent": "@triggerBody()?['ACSDeliveryAgent']",
+                                                "orderPrefix": "@concat(triggerBody()?['OrderNumberPrefix'], '-')",
+                                                "saturdayDelivery": "@triggerBody()?['SaturdayDelivery']",
+                                                "service": "@triggerBody()?['ACSDeliveryService']",
+                                                "shippingTime": "@triggerBody()?['DeliveryTime']"
+                                            }
+                                        },
+                                        "type": "Compose"
+                                    },
+                                    "Compose_Shopify_Order_Number": {
+                                        "inputs": "@item()?['Shopify_OrderNumber']",
+                                        "runAfter": {
+                                            "Compose_ACS_Order_Number": [
+                                                "SUCCEEDED"
+                                            ]
+                                        },
+                                        "type": "Compose"
+                                    },
+                                    "Compose_Size_Conversions": {
+                                        "inputs": {
+                                            "sizeConversion": "@variables('SizeConversion')"
+                                        },
+                                        "runAfter": {
+                                            "Compose_PartnerInfo": [
+                                                "SUCCEEDED"
+                                            ]
+                                        },
+                                        "type": "Compose"
+                                    },
+                                    "Convert_Orders_Function_App": {
+                                        "inputs": {
+                                            "body": "@outputs('Compose_Output')",
+                                            "function": {
+                                                "connectionName": "azureFunctionOperation"
+                                            },
+                                            "method": "POST"
+                                        },
+                                        "runAfter": {
+                                            "Compose_Shopify_Order_Number": [
+                                                "SUCCEEDED"
+                                            ]
+                                        },
+                                        "type": "Function"
+                                    }
+                                },
+                                "else": {
+                                    "actions": {}
+                                },
+                                "expression": {
+                                    "and": [
+                                        {
+                                            "equals": [
+                                                "@outputs('Get_Order')?['statusCode']",
+                                                200
+                                            ]
+                                        }
+                                    ]
+                                },
+                                "runAfter": {
+                                    "Get_Order": [
+                                        "SUCCEEDED"
+                                    ]
+                                },
+                                "type": "If"
+                            },
+                            "Get_Order": {
+                                "inputs": {
+                                    "headers": {
+                                        "X-Shopify-Access-Token": "@{body('Get_Shopify_Bearer_Token')?['value']}"
+                                    },
+                                    "method": "GET",
+                                    "uri": "https://@{triggerBody()?['ShopId']}.myshopify.com/admin/api/2023-01/orders/@{items('For_each_Order')?['Shopify_Id']}.json"
+                                },
+                                "runtimeConfiguration": {
+                                    "contentTransfer": {
+                                        "transferMode": "Chunked"
+                                    }
+                                },
+                                "type": "Http"
+                            }
+                        },
+                        "foreach": "@body('Parse_Get_Orders_JSON')?['Table1']",
+                        "runAfter": {
+                            "Set_Size_Conversions": [
+                                "SUCCEEDED"
+                            ]
+                        },
+                        "type": "Foreach"
+                    },
+                    "Parse_Size_Conversions_JSON": {
+                        "inputs": {
+                            "content": "@body('Shopify_Get_Size_Conversions')?['resultsets']",
+                            "schema": {
+                                "properties": {
+                                    "Table1": {
+                                        "items": {
+                                            "properties": {
+                                                "From": {
+                                                    "type": "string"
+                                                },
+                                                "To": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "To",
+                                                "From"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "type": "array"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        },
+                        "runAfter": {
+                            "Shopify_Get_Size_Conversions": [
+                                "SUCCEEDED"
+                            ]
+                        },
+                        "type": "ParseJson"
+                    },
+                    "Set_Size_Conversions": {
+                        "inputs": {
+                            "name": "SizeConversion",
+                            "value": "@body('Parse_Size_Conversions_JSON')?['Table1']"
+                        },
+                        "runAfter": {
+                            "Parse_Size_Conversions_JSON": [
+                                "SUCCEEDED"
+                            ]
+                        },
+                        "type": "SetVariable"
+                    },
+                    "Shopify_Get_Size_Conversions": {
+                        "inputs": {
+                            "body": {
+                                "accountCode": "@triggerBody()?['AccountCode']"
+                            },
+                            "host": {
+                                "connection": {
+                                    "referenceName": "sql"
+                                }
+                            },
+                            "method": "post",
+                            "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Shopify_GetSizeConversion]'))}"
+                        },
+                        "type": "ApiConnection"
+                    }
+                },
+                "else": {
+                    "actions": {}
+                },
+                "expression": {
+                    "and": [
+                        {
+                            "not": {
+                                "equals": [
+                                    "@body('Parse_Get_Orders_JSON')?['Table1']",
+                                    "[]"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Parse_Get_Orders_JSON": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "If"
+            },
+            "Get_API_Key_": {
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "referenceName": "keyvault"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/secrets/@{encodeURIComponent(concat(triggerBody()?['AccountCode'],'-Shopify-API-KEY'))}/value"
+                },
+                "runAfter": {
+                    "Get_Partner_API_URL": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "ApiConnection"
+            },
+            "Get_Orders_to_Process": {
+                "inputs": {
+                    "body": {
+                        "accountCode": "@triggerBody()?['AccountCode']"
+                    },
+                    "host": {
+                        "connection": {
+                            "referenceName": "sql"
+                        }
+                    },
+                    "method": "post",
+                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Shopify_GetOrdersToProcess]'))}"
+                },
+                "runAfter": {
+                    "Check_Orders_Call_was_Successful": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "ApiConnection"
+            },
+            "Get_Partner_API_URL": {
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "referenceName": "keyvault"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/secrets/@{encodeURIComponent('Partner-API-URL')}/value"
+                },
+                "runAfter": {
+                    "Get_Shopify_Bearer_Token": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "ApiConnection"
+            },
+            "Get_Shopify_Bearer_Token": {
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "referenceName": "keyvault"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/secrets/@{encodeURIComponent(concat(triggerBody()?['AccountCode'],'-Access-Token'))}/value"
+                },
+                "runAfter": {
+                    "Initialize_SizeConversion_Array": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "ApiConnection"
+            },
+            "Get_Shopify_Orders": {
+                "inputs": {
+                    "headers": {
+                        "X-Shopify-Access-Token": "@{body('Get_API_Key_')?['value']}"
+                    },
+                    "method": "GET",
+                    "queries": {
+                        "fields": "created_at,id,order_number,updated_at,financial_status"
+                    },
+                    "uri": "https://@{triggerBody()?['ShopId']}.myshopify.com/admin/api/2023-01/orders.json?updated_at_min=@{triggerBody()?['LastRunTime']}"
+                },
+                "runAfter": {
+                    "Get_API_Key_": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "runtimeConfiguration": {
+                    "contentTransfer": {
+                        "transferMode": "Chunked"
+                    }
+                },
+                "type": "Http"
+            },
+            "Initialize_Orders_Array": {
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "Orders",
+                            "type": "array"
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Initialize_RunTime": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "InitializeVariable"
+            },
+            "Initialize_RunTime": {
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "RunTime",
+                            "type": "string",
+                            "value": "@{utcNow()}"
+                        }
+                    ]
+                },
+                "runAfter": {},
+                "type": "InitializeVariable"
+            },
+            "Initialize_SizeConversion_Array": {
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "SizeConversion",
+                            "type": "array"
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Initialize_Orders_Array": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "InitializeVariable"
+            },
+            "Parse_Get_Orders_JSON": {
+                "inputs": {
+                    "content": "@body('Get_Orders_to_Process')?['resultsets']",
+                    "schema": {
+                        "properties": {
+                            "Table1": {
+                                "items": {
+                                    "properties": {
+                                        "Shopify_Id": {
+                                            "type": "string"
+                                        },
+                                        "Shopify_OrderNumber": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "Shopify_OrderNumber",
+                                        "Shopify_Id"
+                                    ],
+                                    "type": "object"
+                                },
+                                "type": "array"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "runAfter": {
+                    "Get_Orders_to_Process": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "ParseJson"
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "triggers": {
+            "When_a_HTTP_request_is_received": {
+                "inputs": {
+                    "schema": {
+                        "properties": {
+                            "ACSDeliveryAgent": {
+                                "type": "string"
+                            },
+                            "ACSDeliveryService": {
+                                "type": "string"
+                            },
+                            "AccountCode": {
+                                "type": "string"
+                            },
+                            "Active": {
+                                "type": "boolean"
+                            },
+                            "DeliveryTime": {
+                                "type": "integer"
+                            },
+                            "Endpoint": {
+                                "type": "string"
+                            },
+                            "ID": {
+                                "type": "integer"
+                            },
+                            "LastRunTime": {
+                                "type": "string"
+                            },
+                            "Name": {
+                                "type": "string"
+                            },
+                            "NotifyCustomers": {
+                                "type": "boolean"
+                            },
+                            "Operation": {
+                                "type": "string"
+                            },
+                            "OrderNumberPrefix": {
+                                "type": "string"
+                            },
+                            "SaturdayDelivery": {
+                                "type": "string"
+                            },
+                            "ShopId": {
+                                "type": "string"
+                            },
+                            "SizeConversion": {
+                                "type": "boolean"
+                            },
+                            "Username": {
+                                "type": "string"
+                            },
+                            "email": {
+                                "type": "string"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "kind": "Http",
+                "type": "Request"
+            }
+        }
+    },
+    "kind": "Stateful"
+}

@@ -1,0 +1,491 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "Check_for_Orders": {
+                "actions": {
+                    "For_each_Order": {
+                        "actions": {
+                            "Check_Serial_Numbers_returned": {
+                                "actions": {
+                                    "For_each_Unserialized_Item": {
+                                        "actions": {
+                                            "Update_Fulfilment_Line_Details": {
+                                                "inputs": {
+                                                    "body": {
+                                                        "LineId": "@{item()?['lineItemShopifyId']}",
+                                                        "SerialId": "@item()?['id']",
+                                                        "Status": 1,
+                                                        "accountCode": "@triggerBody()?['AccountCode']"
+                                                    },
+                                                    "host": {
+                                                        "connection": {
+                                                            "referenceName": "sql"
+                                                        }
+                                                    },
+                                                    "method": "post",
+                                                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Update_Supercycle_Details]'))}"
+                                                },
+                                                "type": "ApiConnection"
+                                            }
+                                        },
+                                        "foreach": "@body('Parse_Unassigned_Serials')?['unserializedItems']",
+                                        "type": "Foreach"
+                                    }
+                                },
+                                "else": {
+                                    "actions": {
+                                        "Update_Order_With_Transfer_Not_Required": {
+                                            "inputs": {
+                                                "body": {
+                                                    "ShopifyOrderNumber": "@{item()?['shopify_orderid']}",
+                                                    "accountCode": "@triggerBody()?['AccountCode']"
+                                                },
+                                                "host": {
+                                                    "connection": {
+                                                        "referenceName": "sql"
+                                                    }
+                                                },
+                                                "method": "post",
+                                                "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Update_Supercycle_Details_Transfer_Not_Required]'))}"
+                                            },
+                                            "type": "ApiConnection"
+                                        }
+                                    }
+                                },
+                                "expression": {
+                                    "and": [
+                                        {
+                                            "not": {
+                                                "equals": [
+                                                    "@empty(body('Parse_Unassigned_Serials')?['unserializedItems'])",
+                                                    true
+                                                ]
+                                            }
+                                        }
+                                    ]
+                                },
+                                "runAfter": {
+                                    "Parse_Unassigned_Serials": [
+                                        "SUCCEEDED"
+                                    ]
+                                },
+                                "type": "If"
+                            },
+                            "Get_unassigned_serials": {
+                                "inputs": {
+                                    "headers": {
+                                        "Authorization": "Bearer @{body('Get_Supercycle_Bearer_Token')?['value']}"
+                                    },
+                                    "method": "GET",
+                                    "uri": "https://app.supercycle.com/api/v1/serial_assignment/new?shopify_order_id=@{item()?['shopify_orderid']}"
+                                },
+                                "runtimeConfiguration": {
+                                    "contentTransfer": {
+                                        "transferMode": "Chunked"
+                                    }
+                                },
+                                "type": "Http"
+                            },
+                            "Parse_Unassigned_Serials": {
+                                "inputs": {
+                                    "content": "@body('Get_unassigned_serials')",
+                                    "schema": {
+                                        "properties": {
+                                            "unserializedItems": {
+                                                "items": {
+                                                    "properties": {
+                                                        "customerShopifyId": {
+                                                            "type": "integer"
+                                                        },
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "lineItemShopifyId": {
+                                                            "type": "integer"
+                                                        },
+                                                        "orderShopifyId": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "lineItemShopifyId",
+                                                        "orderShopifyId",
+                                                        "customerShopifyId"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "type": "array"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                },
+                                "runAfter": {
+                                    "Get_unassigned_serials": [
+                                        "SUCCEEDED"
+                                    ]
+                                },
+                                "type": "ParseJson"
+                            }
+                        },
+                        "foreach": "@body('Parse_Supercycle_Orders')?['Table1']",
+                        "type": "Foreach"
+                    }
+                },
+                "else": {
+                    "actions": {}
+                },
+                "expression": {
+                    "and": [
+                        {
+                            "not": {
+                                "equals": [
+                                    "@empty(body('Parse_Supercycle_Orders')?['Table1'])",
+                                    true
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Get_Supercycle_Bearer_Token": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "If"
+            },
+            "Check_for_Serial_Numbers_": {
+                "actions": {
+                    "For_each_Assigned_Item": {
+                        "actions": {
+                            "Assign_Serial_Numbers": {
+                                "inputs": {
+                                    "body": {
+                                        "serial_assignment": {
+                                            "items": [
+                                                {
+                                                    "id": "@item()?['id']",
+                                                    "serial": "@{item()?['serial']}l"
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    "headers": {
+                                        "Authorization": "Bearer @{body('Get_Supercycle_Bearer_Token')?['value']}"
+                                    },
+                                    "method": "POST",
+                                    "uri": "https://app.supercycle.com/api/v1/serial_assignment"
+                                },
+                                "runtimeConfiguration": {
+                                    "contentTransfer": {
+                                        "transferMode": "Chunked"
+                                    }
+                                },
+                                "type": "Http"
+                            },
+                            "Check_Serial_Numbers_Assigned_Successfully": {
+                                "actions": {
+                                    "Update_Assigned_Serial_Numbers_Status_-_Success": {
+                                        "inputs": {
+                                            "body": {
+                                                "LineId": "@{item()?['shopifyId']}",
+                                                "SerialId": "@item()?['id']",
+                                                "Status": 2,
+                                                "accountCode": "@triggerBody()?['AccountCode']"
+                                            },
+                                            "host": {
+                                                "connection": {
+                                                    "referenceName": "sql"
+                                                }
+                                            },
+                                            "method": "post",
+                                            "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Update_Supercycle_Details]'))}"
+                                        },
+                                        "type": "ApiConnection"
+                                    }
+                                },
+                                "else": {
+                                    "actions": {
+                                        "Update_Assigned_Serial_Number_Status_-_Fail": {
+                                            "inputs": {
+                                                "body": {
+                                                    "LineId": "@{item()?['shopifyId']}",
+                                                    "SerialId": "@item()?['id']",
+                                                    "Status": 5,
+                                                    "accountCode": "@triggerBody()?['AccountCode']"
+                                                },
+                                                "host": {
+                                                    "connection": {
+                                                        "referenceName": "sql"
+                                                    }
+                                                },
+                                                "method": "post",
+                                                "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Update_Supercycle_Details]'))}"
+                                            },
+                                            "type": "ApiConnection"
+                                        }
+                                    }
+                                },
+                                "expression": {
+                                    "and": [
+                                        {
+                                            "equals": [
+                                                "@outputs('Assign_Serial_Numbers')?['statusCode']",
+                                                200
+                                            ]
+                                        }
+                                    ]
+                                },
+                                "runAfter": {
+                                    "Assign_Serial_Numbers": [
+                                        "SUCCEEDED",
+                                        "TIMEDOUT",
+                                        "SKIPPED",
+                                        "FAILED"
+                                    ]
+                                },
+                                "type": "If"
+                            }
+                        },
+                        "foreach": "@body('Parse_Assigned_Items_')?['Table1']",
+                        "type": "Foreach"
+                    }
+                },
+                "else": {
+                    "actions": {}
+                },
+                "expression": {
+                    "and": [
+                        {
+                            "not": {
+                                "equals": [
+                                    "@empty(body('Parse_Assigned_Items_')?['Table1'])",
+                                    true
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Parse_Assigned_Items_": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "If"
+            },
+            "Get_Assigned_Serial_Numbers_to_Post": {
+                "inputs": {
+                    "body": {
+                        "accountCode": "@triggerBody()?['AccountCode']"
+                    },
+                    "host": {
+                        "connection": {
+                            "referenceName": "sql"
+                        }
+                    },
+                    "method": "post",
+                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Supercycle_Get_Serials_To_Post]'))}"
+                },
+                "runAfter": {
+                    "Check_for_Orders": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "ApiConnection"
+            },
+            "Get_Supercycle_Bearer_Token": {
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "referenceName": "keyvault"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/secrets/@{encodeURIComponent(concat(triggerBody()?['AccountCode'], '-Supercycle-Bearer-Token'))}/value"
+                },
+                "runAfter": {
+                    "Parse_Supercycle_Orders": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "ApiConnection"
+            },
+            "Get_Supercycle_Orders_For_Serialization_": {
+                "inputs": {
+                    "body": {
+                        "accountCode": "@triggerBody()?['AccountCode']"
+                    },
+                    "host": {
+                        "connection": {
+                            "referenceName": "sql"
+                        }
+                    },
+                    "method": "post",
+                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Supercycle_Get_Orders_For_Serialization]'))}"
+                },
+                "runAfter": {
+                    "Set_Runtime": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "ApiConnection"
+            },
+            "Parse_Assigned_Items_": {
+                "inputs": {
+                    "content": "@body('Get_Assigned_Serial_Numbers_to_Post')?['resultsets']",
+                    "schema": {
+                        "properties": {
+                            "Table1": {
+                                "items": {
+                                    "properties": {
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "serial": {
+                                            "type": "string"
+                                        },
+                                        "shopifyId": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "shopifyId",
+                                        "serial"
+                                    ],
+                                    "type": "object"
+                                },
+                                "type": "array"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "runAfter": {
+                    "Get_Assigned_Serial_Numbers_to_Post": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "ParseJson"
+            },
+            "Parse_Supercycle_Orders": {
+                "inputs": {
+                    "content": "@body('Get_Supercycle_Orders_For_Serialization_')?['resultsets']",
+                    "schema": {
+                        "properties": {
+                            "Table1": {
+                                "items": {
+                                    "properties": {
+                                        "shopify_orderid": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "required": [
+                                        "shopify_orderid"
+                                    ],
+                                    "type": "object"
+                                },
+                                "type": "array"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "runAfter": {
+                    "Get_Supercycle_Orders_For_Serialization_": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "ParseJson"
+            },
+            "Set_Runtime": {
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "RunTime",
+                            "type": "string",
+                            "value": "@{utcNow()}"
+                        }
+                    ]
+                },
+                "runAfter": {},
+                "type": "InitializeVariable"
+            },
+            "Update_Orchestrator_Last_Run_Time": {
+                "inputs": {
+                    "body": {
+                        "Date": "@variables('RunTime')",
+                        "ID": "@triggerBody()?['ID']"
+                    },
+                    "host": {
+                        "connection": {
+                            "referenceName": "sql"
+                        }
+                    },
+                    "method": "post",
+                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Shopify_Orchestrator_Update_LastRunTime]'))}"
+                },
+                "runAfter": {
+                    "Check_for_Serial_Numbers_": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "ApiConnection"
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "triggers": {
+            "When_a_HTTP_request_is_received": {
+                "inputs": {
+                    "schema": {
+                        "properties": {
+                            "AccountCode": {
+                                "type": "string"
+                            },
+                            "Active": {
+                                "type": "boolean"
+                            },
+                            "Endpoint": {
+                                "type": "string"
+                            },
+                            "ID": {
+                                "type": "integer"
+                            },
+                            "LastRunTime": {
+                                "type": "string"
+                            },
+                            "Name": {
+                                "type": "string"
+                            },
+                            "NotifyCustomers": {
+                                "type": "boolean"
+                            },
+                            "Operation": {
+                                "type": "string"
+                            },
+                            "OrderNumberPrefix": {
+                                "type": "string"
+                            },
+                            "ShopId": {
+                                "type": "string"
+                            },
+                            "SizeConversion": {
+                                "type": "boolean"
+                            },
+                            "email": {
+                                "type": "string"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "kind": "Http",
+                "type": "Request"
+            }
+        }
+    },
+    "kind": "Stateful"
+}

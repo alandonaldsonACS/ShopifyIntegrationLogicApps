@@ -1,0 +1,297 @@
+{
+  "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "actions": {
+          "For_each_Item_to_Restock": {
+              "actions": {
+                  "Check_if_Supercycle_Restock_Successful": {
+                      "actions": {
+                          "Update_Line_Status_-_Succesful": {
+                              "inputs": {
+                                  "body": {
+                                      "acs_lineItemId": "@items('For_each_Item_to_Restock')?['acs_lineItemsId']",
+                                      "restockCode": "@outputs('Create_Supercycle_Restock')?['statusCode']",
+                                      "shopify_OrderId": "@{item()?['shopify_OrderId']}",
+                                      "shopify_lineItemsId": "@item()?['LineId']",
+                                      "status": 2
+                                  },
+                                  "host": {
+                                      "connection": {
+                                          "referenceName": "sql"
+                                      }
+                                  },
+                                  "method": "post",
+                                  "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Supercycle_Update_Restock_Status]'))}"
+                              },
+                              "type": "ApiConnection"
+                          }
+                      },
+                      "else": {
+                          "actions": {
+                              "Update_Line_Status_-_Failed": {
+                                  "inputs": {
+                                      "body": {
+                                          "acs_lineItemId": "@items('For_each_Item_to_Restock')?['acs_lineItemsId']",
+                                          "restockCode": "@outputs('Create_Supercycle_Restock')?['statusCode']",
+                                          "restockError": "@{body('Create_Supercycle_Restock')}",
+                                          "shopify_OrderId": "@{item()?['shopify_OrderId']}",
+                                          "shopify_lineItemsId": "@item()?['LineId']",
+                                          "status": 5
+                                      },
+                                      "host": {
+                                          "connection": {
+                                              "referenceName": "sql"
+                                          }
+                                      },
+                                      "method": "post",
+                                      "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Supercycle_Update_Restock_Status]'))}"
+                                  },
+                                  "type": "ApiConnection"
+                              }
+                          }
+                      },
+                      "expression": {
+                          "and": [
+                              {
+                                  "equals": [
+                                      "@outputs('Create_Supercycle_Restock')?['statusCode']",
+                                      200
+                                  ]
+                              }
+                          ]
+                      },
+                      "runAfter": {
+                          "Create_Supercycle_Restock": [
+                              "SUCCEEDED"
+                          ]
+                      },
+                      "type": "If"
+                  },
+                  "Create_Supercycle_Restock": {
+                      "inputs": {
+                          "body": {
+                              "restock": {
+                                  "line_items": [
+                                      {
+                                          "id": "@item()?['Serial_Id']"
+                                      },
+                                      {
+                                          "serial": "@{item()?['Barcode']}"
+                                      }
+                                  ],
+                                  "restock_location_gid": "@{concat('gid://shopify/Location/', item()?['LocationId'])}"
+                              }
+                          },
+                          "headers": {
+                              "Authorization": "Bearer @{body('Get_Supercycle_Bearer_Token')?['value']}",
+                              "Content-Type": "application/json"
+                          },
+                          "method": "POST",
+                          "uri": "https://app.supercycle.com/api/v1/restock"
+                      },
+                      "runtimeConfiguration": {
+                          "contentTransfer": {
+                              "transferMode": "Chunked"
+                          }
+                      },
+                      "type": "Http"
+                  }
+              },
+              "foreach": "@body('Parse_Items_to_Restock')?['Table1']",
+              "runAfter": {
+                  "Parse_Items_to_Restock": [
+                      "SUCCEEDED"
+                  ]
+              },
+              "type": "Foreach"
+          },
+          "Get_Supercycle_Bearer_Token": {
+              "inputs": {
+                  "host": {
+                      "connection": {
+                          "referenceName": "keyvault"
+                      }
+                  },
+                  "method": "get",
+                  "path": "/secrets/@{encodeURIComponent(concat(triggerBody()?['AccountCode'],'-Supercycle-Bearer-Token'))}/value"
+              },
+              "runAfter": {
+                  "Set_Runtime": [
+                      "SUCCEEDED"
+                  ]
+              },
+              "type": "ApiConnection"
+          },
+          "Get_Supercycle_Items_To_Restock": {
+              "inputs": {
+                  "body": {
+                      "accountCode": "@triggerBody()?['AccountCode']"
+                  },
+                  "host": {
+                      "connection": {
+                          "referenceName": "sql"
+                      }
+                  },
+                  "method": "post",
+                  "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Supercycle_Get_Items_To_Restock]'))}"
+              },
+              "runAfter": {
+                  "Get_Supercycle_Bearer_Token": [
+                      "SUCCEEDED"
+                  ]
+              },
+              "type": "ApiConnection"
+          },
+          "Parse_Items_to_Restock": {
+              "inputs": {
+                  "content": "@body('Get_Supercycle_Items_To_Restock')?['resultsets']",
+                  "schema": {
+                      "properties": {
+                          "Table1": {
+                              "items": {
+                                  "properties": {
+                                      "Barcode": {
+                                          "type": "string"
+                                      },
+                                      "LineId": {
+                                          "type": "integer"
+                                      },
+                                      "LocationId": {
+                                          "type": "string"
+                                      },
+                                      "Serial_Id": {
+                                          "type": "string"
+                                      },
+                                      "acs_lineItemsId": {
+                                          "type": "integer"
+                                      },
+                                      "shopify_OrderId": {
+                                          "type": "integer"
+                                      }
+                                  },
+                                  "required": [
+                                      "shopify_OrderId",
+                                      "LineId"
+                                  ],
+                                  "type": "object"
+                              },
+                              "type": "array"
+                          }
+                      },
+                      "type": "object"
+                  }
+              },
+              "runAfter": {
+                  "Get_Supercycle_Items_To_Restock": [
+                      "SUCCEEDED"
+                  ]
+              },
+              "type": "ParseJson"
+          },
+          "Set_Runtime": {
+              "inputs": {
+                  "variables": [
+                      {
+                          "name": "Runtime",
+                          "type": "string",
+                          "value": "@{utcNow()}"
+                      }
+                  ]
+              },
+              "runAfter": {},
+              "type": "InitializeVariable"
+          },
+          "Update_Orchestrator_Last_Run_Time": {
+              "inputs": {
+                  "body": {
+                      "Date": "@variables('Runtime')",
+                      "ID": "@triggerBody()?['ID']"
+                  },
+                  "host": {
+                      "connection": {
+                          "referenceName": "sql"
+                      }
+                  },
+                  "method": "post",
+                  "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('ACSSQL2019-01'))},@{encodeURIComponent(encodeURIComponent('Formal10'))}/procedures/@{encodeURIComponent(encodeURIComponent('[dbo].[Shopify_Orchestrator_Update_LastRunTime]'))}"
+              },
+              "runAfter": {
+                  "For_each_Item_to_Restock": [
+                      "SUCCEEDED",
+                      "TIMEDOUT",
+                      "SKIPPED",
+                      "FAILED"
+                  ]
+              },
+              "type": "ApiConnection"
+          }
+      },
+      "contentVersion": "1.0.0.0",
+      "outputs": {},
+      "triggers": {
+          "When_a_HTTP_request_is_received": {
+              "inputs": {
+                  "schema": {
+                      "properties": {
+                          "ACSDeliveryAgent": {
+                              "type": "string"
+                          },
+                          "ACSDeliveryService": {
+                              "type": "string"
+                          },
+                          "AccountCode": {
+                              "type": "string"
+                          },
+                          "Active": {
+                              "type": "boolean"
+                          },
+                          "DeliveryTime": {
+                              "type": "integer"
+                          },
+                          "Email": {
+                              "type": "string"
+                          },
+                          "Endpoint": {
+                              "type": "string"
+                          },
+                          "ID": {
+                              "type": "integer"
+                          },
+                          "LastRunTime": {
+                              "type": "string"
+                          },
+                          "Name": {
+                              "type": "string"
+                          },
+                          "NotifyCustomers": {
+                              "type": "boolean"
+                          },
+                          "Operation": {
+                              "type": "string"
+                          },
+                          "OrderNumberPrefix": {
+                              "type": "string"
+                          },
+                          "SaturdayDelivery": {
+                              "type": "string"
+                          },
+                          "ShopId": {
+                              "type": "string"
+                          },
+                          "SizeConversion": {
+                              "type": "boolean"
+                          },
+                          "Username": {
+                              "type": "string"
+                          }
+                      },
+                      "type": "object"
+                  }
+              },
+              "kind": "Http",
+              "type": "Request"
+          }
+      }
+  },
+  "kind": "Stateful"
+}
