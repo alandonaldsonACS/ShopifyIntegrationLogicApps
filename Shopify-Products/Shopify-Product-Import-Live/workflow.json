@@ -222,7 +222,15 @@
                                             }
                                         },
                                         "else": {
-                                            "actions": {}
+                                            "actions": {
+                                                "Set_ProductHeaderLink_to_stop_While_Loop_2": {
+                                                    "inputs": {
+                                                        "name": "ProductHeaderLink",
+                                                        "value": "N/A"
+                                                    },
+                                                    "type": "SetVariable"
+                                                }
+                                            }
                                         },
                                         "expression": {
                                             "and": [
