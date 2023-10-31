@@ -39,6 +39,12 @@
                                                 "financial_status": {
                                                     "type": "string"
                                                 },
+                                                "fulfillment_status": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "id": {
                                                     "type": "integer"
                                                 },
@@ -72,6 +78,7 @@
                             "select": {
                                 "Created_at": "@{slice(item()?['created_at'],0,19)}",
                                 "Financial_status": "@{item()?['financial_status']}",
+                                "Fulfillment_status": "@{item()?['fulfillment_status']}",
                                 "Id": "@{item()?['id']}",
                                 "Order_number": "@{item()?['order_number']}",
                                 "Updated_at": "@{slice(item()?['updated_at'],0,19)}"
@@ -169,7 +176,7 @@
                                                                 "content-type": "application/json"
                                                             },
                                                             "method": "PUT",
-                                                            "uri": "@{body('Get_Partner_API_URL')?['value']}api/v1/orders@{item()?['OrderNumber']}"
+                                                            "uri": "@{body('Get_Partner_API_URL')?['value']}api/v1/orders/@{item()?['OrderNumber']}"
                                                         },
                                                         "runAfter": {
                                                             "Compose_Order_JSON": [
@@ -340,9 +347,9 @@
                                                         "type": "Compose"
                                                     }
                                                 },
-                                                "foreach": "@body('Parse_Convert_Orders_JSON')?['Orders']",
+                                                "foreach": "@variables('OrdersToProcess')",
                                                 "runAfter": {
-                                                    "Parse_Convert_Orders_JSON": [
+                                                    "Set_variable": [
                                                         "SUCCEEDED"
                                                     ]
                                                 },
@@ -414,6 +421,49 @@
                                                                             "type": "string"
                                                                         },
                                                                         "OrderItems": {
+                                                                            "items": {
+                                                                                "properties": {
+                                                                                    "GarmentSku": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "IsHire": {
+                                                                                        "type": "boolean"
+                                                                                    },
+                                                                                    "ItemPrice": {
+                                                                                        "type": "integer"
+                                                                                    },
+                                                                                    "LineItemID": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "Measurement1": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "Measurement2": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "Misc11": {},
+                                                                                    "Misc12": {},
+                                                                                    "Misc13": {},
+                                                                                    "Misc14": {},
+                                                                                    "Misc15": {
+                                                                                        "type": "string"
+                                                                                    }
+                                                                                },
+                                                                                "required": [
+                                                                                    "LineItemID",
+                                                                                    "GarmentSku",
+                                                                                    "IsHire",
+                                                                                    "ItemPrice",
+                                                                                    "Measurement1",
+                                                                                    "Measurement2",
+                                                                                    "Misc11",
+                                                                                    "Misc12",
+                                                                                    "Misc13",
+                                                                                    "Misc14",
+                                                                                    "Misc15"
+                                                                                ],
+                                                                                "type": "object"
+                                                                            },
                                                                             "type": "array"
                                                                         },
                                                                         "OrderNumber": {
@@ -464,6 +514,18 @@
                                                     }
                                                 },
                                                 "type": "ParseJson"
+                                            },
+                                            "Set_variable": {
+                                                "inputs": {
+                                                    "name": "OrdersToProcess",
+                                                    "value": "@array(body('Parse_Convert_Orders_JSON'))"
+                                                },
+                                                "runAfter": {
+                                                    "Parse_Convert_Orders_JSON": [
+                                                        "SUCCEEDED"
+                                                    ]
+                                                },
+                                                "type": "SetVariable"
                                             }
                                         },
                                         "else": {
@@ -756,13 +818,15 @@
             "Get_Shopify_Orders": {
                 "inputs": {
                     "headers": {
-                        "X-Shopify-Access-Token": "@{body('Get_API_Key_')?['value']}"
+                        "X-Shopify-Access-Token": "@{body('Get_Shopify_Bearer_Token')?['value']}"
                     },
                     "method": "GET",
                     "queries": {
-                        "fields": "created_at,id,order_number,updated_at,financial_status"
+                        "fields": "created_at,id,order_number,updated_at,financial_status, fulfillment_status",
+                        "limit": "250",
+                        "updated_at_min": "@{triggerBody()?['LastRunTime']}"
                     },
-                    "uri": "https://@{triggerBody()?['ShopId']}.myshopify.com/admin/api/2023-01/orders.json?updated_at_min=@{triggerBody()?['LastRunTime']}"
+                    "uri": "https://@{triggerBody()?['ShopId']}.myshopify.com/admin/api/2023-01/orders.json"
                 },
                 "runAfter": {
                     "Get_API_Key_": [
@@ -775,6 +839,22 @@
                     }
                 },
                 "type": "Http"
+            },
+            "Initialise_Orders_array_To_Fix_issue": {
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "OrdersToProcess",
+                            "type": "array"
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Initialize_Orders_Array": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "type": "InitializeVariable"
             },
             "Initialize_Orders_Array": {
                 "inputs": {
@@ -815,7 +895,7 @@
                     ]
                 },
                 "runAfter": {
-                    "Initialize_Orders_Array": [
+                    "Initialise_Orders_array_To_Fix_issue": [
                         "SUCCEEDED"
                     ]
                 },
